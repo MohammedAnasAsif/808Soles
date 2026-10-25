@@ -1,0 +1,133 @@
+name: Build apps
+
+# Every push to main builds the Android APK and the Windows installer and
+# publishes them on the "Latest build" release. Tagging v1.2.3 makes a
+# proper versioned release.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - run: npm run typecheck
+      - run: npm test
+
+  android:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - run: npm run build
+      - run: npx cap sync android
+
+      - name: Signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            {
+              echo "CADENCE_KEYSTORE=$RUNNER_TEMP/release.jks"
+              echo "CADENCE_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+              echo "CADENCE_KEY_ALIAS=cadence"
+              echo "CADENCE_KEY_PASSWORD=$KEYSTORE_PASSWORD"
+            } >> "$GITHUB_ENV"
+          else
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret. The APK is signed with a throwaway key, so it can't update an earlier install. See README."
+          fi
+
+      - name: Build APK
+        working-directory: android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('0.1.{0}', github.run_number) }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+          mkdir -p ../out
+          cp app/build/outputs/apk/release/*.apk ../out/Cadence.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cadence-android
+          path: out/Cadence.apk
+
+  windows:
+    needs: check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Build installer
+        run: npx electron-builder --win nsis --x64 --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Collect
+        shell: bash
+        run: |
+          mkdir -p out
+          cp release/*.exe out/Cadence-Setup.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cadence-windows
+          path: out/Cadence-Setup.exe
+
+  release:
+    needs: [android, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          ls -la out
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            gh release create "$GITHUB_REF_NAME" out/* --repo "$REPO" --title "Cadence $GITHUB_REF_NAME" --generate-notes
+          else
+            gh release delete latest-build --repo "$REPO" --cleanup-tag -y || true
+            gh release create latest-build out/* --repo "$REPO" --target "$GITHUB_SHA" --prerelease \
+              --title "Latest build" \
+              --notes "Built from $GITHUB_SHA. Android: download Cadence.apk on your phone and open it. Windows: run Cadence-Setup.exe."
+          fi

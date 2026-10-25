@@ -1,0 +1,345 @@
+@import '@fontsource-variable/inter';
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------- */
+/* Tokens                                                                  */
+/* ---------------------------------------------------------------------- */
+
+:root {
+  --accent: #fa2d48;
+  --accent-soft: rgba(250, 45, 72, 0.14);
+
+  --bg: #ffffff;
+  --bg-elev: #f2f2f7;
+  --bg-elev-2: #ffffff;
+  --bg-sidebar: #f5f5f7;
+  --glass: rgba(249, 249, 251, 0.82);
+  --sep: rgba(60, 60, 67, 0.16);
+  --label: #000000;
+  --label-2: rgba(60, 60, 67, 0.62);
+  --label-3: rgba(60, 60, 67, 0.36);
+  --fill: rgba(120, 120, 128, 0.14);
+  --fill-2: rgba(120, 120, 128, 0.22);
+  --shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+  --art-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+
+  --sat: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --sab: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --sal: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+  --sar: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #000000;
+    --bg-elev: #1c1c1e;
+    --bg-elev-2: #2c2c2e;
+    --bg-sidebar: #161618;
+    --glass: rgba(30, 30, 32, 0.78);
+    --sep: rgba(84, 84, 88, 0.55);
+    --label: #ffffff;
+    --label-2: rgba(235, 235, 245, 0.6);
+    --label-3: rgba(235, 235, 245, 0.3);
+    --fill: rgba(118, 118, 128, 0.24);
+    --fill-2: rgba(118, 118, 128, 0.34);
+    --shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    --art-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #000000;
+  --bg-elev: #1c1c1e;
+  --bg-elev-2: #2c2c2e;
+  --bg-sidebar: #161618;
+  --glass: rgba(30, 30, 32, 0.78);
+  --sep: rgba(84, 84, 88, 0.55);
+  --label: #ffffff;
+  --label-2: rgba(235, 235, 245, 0.6);
+  --label-3: rgba(235, 235, 245, 0.3);
+  --fill: rgba(118, 118, 128, 0.24);
+  --fill-2: rgba(118, 118, 128, 0.34);
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  --art-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  color-scheme: dark;
+}
+
+@theme {
+  --font-sans: 'Inter Variable', -apple-system, 'SF Pro Text', 'Segoe UI Variable Text', 'Segoe UI', Roboto, system-ui, sans-serif;
+  --color-accent: var(--accent);
+  --color-bg: var(--bg);
+  --color-elev: var(--bg-elev);
+  --color-elev2: var(--bg-elev-2);
+  --color-sidebar: var(--bg-sidebar);
+  --color-sep: var(--sep);
+  --color-label: var(--label);
+  --color-label2: var(--label-2);
+  --color-label3: var(--label-3);
+  --color-fill: var(--fill);
+  --color-fill2: var(--fill-2);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Base                                                                    */
+/* ---------------------------------------------------------------------- */
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--label);
+  font-family: var(--font-sans);
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+  overflow: hidden;
+}
+
+button {
+  cursor: default;
+}
+
+input,
+textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+/* Thin, quiet scrollbars on desktop */
+.scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--fill-2) transparent;
+}
+
+.hscroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--gutter);
+  overscroll-behavior-x: contain;
+}
+.hscroll::-webkit-scrollbar {
+  display: none;
+}
+.hscroll > * {
+  scroll-snap-align: start;
+}
+
+.glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  backdrop-filter: saturate(180%) blur(24px);
+}
+
+.drag {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Page gutter: 20px on phones, wider on desktop */
+:root {
+  --gutter: 20px;
+}
+@media (min-width: 900px) {
+  :root {
+    --gutter: 32px;
+  }
+}
+
+.px-gutter {
+  padding-left: var(--gutter);
+  padding-right: var(--gutter);
+}
+
+/* Large navigation titles, iOS style */
+.large-title {
+  font-size: 34px;
+  line-height: 41px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.section-title {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.pressable {
+  transition: transform 160ms ease, opacity 160ms ease;
+}
+.pressable:active {
+  transform: scale(0.97);
+  opacity: 0.85;
+}
+
+/* Range input as Apple-style scrubber */
+.scrubber {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 22px;
+  background: transparent;
+  --pct: 0%;
+  --track: rgba(255, 255, 255, 0.25);
+  --fillc: rgba(255, 255, 255, 0.85);
+}
+.scrubber::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--fillc) var(--pct), var(--track) var(--pct));
+  transition: height 150ms ease;
+}
+.scrubber:active::-webkit-slider-runnable-track {
+  height: 10px;
+}
+.scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 0;
+  height: 0;
+}
+.scrubber::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--fillc) var(--pct), var(--track) var(--pct));
+}
+.scrubber::-moz-range-thumb {
+  width: 0;
+  height: 0;
+  border: 0;
+}
+.scrubber.dark-on-light {
+  --track: var(--fill-2);
+  --fillc: var(--label-2);
+}
+.scrubber.small::-webkit-slider-runnable-track {
+  height: 4px;
+}
+.scrubber.small:active::-webkit-slider-runnable-track {
+  height: 6px;
+}
+
+/* Now playing background: the artwork, enlarged and blurred */
+.np-bg {
+  position: absolute;
+  inset: -20%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(70px) saturate(1.7) brightness(0.62);
+  transform: scale(1.1);
+  animation: np-drift 40s ease-in-out infinite alternate;
+}
+@keyframes np-drift {
+  from {
+    transform: scale(1.1) rotate(0deg);
+  }
+  to {
+    transform: scale(1.35) rotate(12deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .np-bg {
+    animation: none;
+  }
+}
+
+/* Lyrics */
+.lyric-line {
+  transition: opacity 400ms ease, transform 400ms ease, filter 400ms ease;
+  transform-origin: left center;
+}
+
+/* Equalizer bars for the now-playing row */
+.eq span {
+  display: inline-block;
+  width: 3px;
+  margin: 0 1px;
+  border-radius: 1px;
+  background: var(--accent);
+  animation: eq 900ms ease-in-out infinite;
+}
+.eq span:nth-child(2) {
+  animation-delay: -300ms;
+}
+.eq span:nth-child(3) {
+  animation-delay: -600ms;
+}
+.eq.paused span {
+  animation-play-state: paused;
+}
+@keyframes eq {
+  0%,
+  100% {
+    height: 4px;
+  }
+  50% {
+    height: 13px;
+  }
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.anim-sheet {
+  animation: sheet-up 320ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+.anim-fade {
+  animation: fade-in 200ms ease;
+}
+.anim-pop {
+  animation: pop-in 180ms ease-out;
+}
+
+.skeleton {
+  background: var(--fill);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
