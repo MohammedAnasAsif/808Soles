@@ -30,7 +30,7 @@ android {
     }
     buildTypes {
         release {
-            signingConfig System.getenv("CADENCE_KEYSTORE") ? signingConfigs.release : signingConfigs.debug
+            signingConfig = System.getenv("CADENCE_KEYSTORE") ? signingConfigs.release : signingConfigs.debug
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
