@@ -78,6 +78,10 @@ npm test
 
 Streams come from YouTube's VISIONOS client first (direct audio URLs, no PO token), falling back to ANDROID_VR, IOS and TV. Age-restricted tracks need a signed-in account, which 808Soles doesn't support yet.
 
+## Security
+
+See [SECURITY.md](SECURITY.md) for how the apps are protected and how to report a problem.
+
 ## License
 
 GPL-3.0-or-later.

@@ -8,6 +8,7 @@ import { ShelfView, ShelfHeader, SongGrid } from '../components/Shelf';
 import { usePlayer } from '../store/player';
 import { useLibrary } from '../store/library';
 import { toast } from '../store/toast';
+import { safeImage } from '../lib/nav';
 
 export default function Artist() {
   const { id = '' } = useParams();
@@ -41,7 +42,7 @@ export default function Artist() {
     <div className="pb-8">
       <div className="relative">
         <div className="relative aspect-square max-h-[62vh] w-full overflow-hidden bg-fill md:aspect-[3/1] md:max-h-none">
-          {data.thumb && <img src={data.thumb} alt="" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full object-cover object-[50%_25%]" />}
+          {safeImage(data.thumb) && <img src={safeImage(data.thumb)} alt="" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full object-cover object-[50%_25%]" />}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
         </div>
         <div className="absolute left-4 top-0" style={{ paddingTop: 'calc(var(--sat) + 10px)' }}>

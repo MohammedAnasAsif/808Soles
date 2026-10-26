@@ -6,6 +6,14 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   android: {
     backgroundColor: '#000000',
+    // Explicit secure defaults: no remote debugging in release builds, no
+    // http content inside the https app, no navigation to other sites.
+    webContentsDebuggingEnabled: false,
+    allowMixedContent: false,
+  },
+  server: {
+    androidScheme: 'https',
+    allowNavigation: [],
   },
   plugins: {
     // YouTube requests go through our own native plugin instead.

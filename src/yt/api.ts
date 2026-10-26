@@ -27,11 +27,53 @@ import type { AlbumPage, ArtistPage, PlaylistPage, SearchResults, SeekIndex, She
  */
 Platform.shim.server = true;
 
-/* YouTube.js runs a few lines of the YouTube player to decipher stream URLs.
-   The script it builds ends with its own `return process(...)`. */
+/*
+ * YouTube.js runs a few lines of YouTube's player script to decipher stream
+ * URLs. That code comes from YouTube's servers, so it runs in an isolated
+ * worker (decipher-worker.ts) with no access to the page or the native bridge.
+ */
+let worker: Worker | null = null;
+let nextId = 0;
+const waiting = new Map<number, { resolve(v: unknown): void; reject(e: Error): void; timer: ReturnType<typeof setTimeout> }>();
+
+function decipherWorker(): Worker {
+  if (worker) return worker;
+  worker = new Worker(new URL('./decipher-worker.ts', import.meta.url), { type: 'module', name: 'decipher' });
+  worker.onmessage = (e: MessageEvent<{ id: number; result?: unknown; error?: string }>) => {
+    const w = waiting.get(e.data.id);
+    if (!w) return;
+    waiting.delete(e.data.id);
+    clearTimeout(w.timer);
+    if (e.data.error) w.reject(new Error(e.data.error));
+    else w.resolve(e.data.result);
+  };
+  worker.onerror = () => resetWorker(new Error('Decipher worker failed'));
+  return worker;
+}
+
+function resetWorker(err: Error) {
+  worker?.terminate();
+  worker = null;
+  for (const w of waiting.values()) {
+    clearTimeout(w.timer);
+    w.reject(err);
+  }
+  waiting.clear();
+}
+
 Platform.shim.eval = (data: { output: string }) => {
-  // eslint-disable-next-line @typescript-eslint/no-implied-eval
-  return new Function(data.output)();
+  if (typeof Worker === 'undefined') {
+    // Unit tests (Node) only; the apps always have workers.
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval
+    return new Function(data.output)();
+  }
+  return new Promise((resolve, reject) => {
+    const id = ++nextId;
+    // A runaway script is stopped rather than left spinning.
+    const timer = setTimeout(() => resetWorker(new Error('Decipher timed out')), 8000);
+    waiting.set(id, { resolve, reject, timer });
+    decipherWorker().postMessage({ id, code: data.output });
+  });
 };
 
 let client: Promise<Innertube> | null = null;

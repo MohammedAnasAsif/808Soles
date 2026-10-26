@@ -103,6 +103,81 @@ public class CadencePlugin extends Plugin {
         if (controller != null) MediaController.releaseFuture(controller);
     }
 
+    /* ------------------------------- Policy ------------------------------ */
+
+    /** Hosts the app may contact (https only): exact names or ".suffix". */
+    private static final String[] ALLOWED_HOSTS = {
+            "youtube.com", ".youtube.com", "youtubei.googleapis.com", ".googlevideo.com", "lrclib.net"
+    };
+    private static final java.util.Set<String> BLOCKED_HEADERS = new java.util.HashSet<>(java.util.Arrays.asList(
+            "host", "cookie", "cookie2", "proxy-authorization", "authorization", "connection",
+            "content-length", "transfer-encoding", "accept-encoding"));
+    private static final long MAX_RESPONSE = 32L * 1024 * 1024;
+    private static final long MAX_DOWNLOAD = 400L * 1024 * 1024;
+
+    /** True for https URLs on the allowed hosts (default port, no credentials). */
+    static boolean allowedUrl(String raw) {
+        if (raw == null) return false;
+        try {
+            java.net.URI u = new java.net.URI(raw);
+            if (!"https".equalsIgnoreCase(u.getScheme()) || u.getRawUserInfo() != null) return false;
+            if (u.getPort() != -1 && u.getPort() != 443) return false;
+            String host = u.getHost();
+            if (host == null) return false;
+            host = host.toLowerCase(java.util.Locale.ROOT);
+            for (String h : ALLOWED_HOSTS) {
+                if (h.startsWith(".") ? host.endsWith(h) : host.equals(h)) return true;
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
+    }
+
+    static boolean isMediaUrl(String raw) {
+        if (!allowedUrl(raw)) return false;
+        try {
+            return new java.net.URI(raw).getHost().toLowerCase(java.util.Locale.ROOT).endsWith(".googlevideo.com");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static void applyHeaders(HttpURLConnection c, JSObject headers) {
+        Iterator<String> keys = headers.keys();
+        while (keys.hasNext()) {
+            String k = keys.next();
+            String v = headers.optString(k, "");
+            String key = k.toLowerCase(java.util.Locale.ROOT);
+            if (BLOCKED_HEADERS.contains(key) || !key.matches("[a-z0-9-]+") || v.contains("\r") || v.contains("\n")) continue;
+            c.setRequestProperty(k, v.length() > 4096 ? v.substring(0, 4096) : v);
+        }
+    }
+
+    /** Opens a connection that follows redirects only to allowed hosts. */
+    private static HttpURLConnection open(String url, String method, JSObject headers) throws java.io.IOException {
+        String current = url;
+        for (int hop = 0; hop < 5; hop++) {
+            if (!allowedUrl(current)) throw new java.io.IOException("Blocked: only YouTube and LRCLIB can be contacted");
+            HttpURLConnection c = (HttpURLConnection) new URL(current).openConnection();
+            c.setInstanceFollowRedirects(false);
+            c.setRequestMethod(method);
+            c.setConnectTimeout(15000);
+            c.setReadTimeout(25000);
+            c.setUseCaches(false);
+            applyHeaders(c, headers);
+            if (!method.equals("POST")) {
+                int status = c.getResponseCode();
+                if (status >= 300 && status < 400 && c.getHeaderField("Location") != null) {
+                    current = new URL(new URL(current), c.getHeaderField("Location")).toString();
+                    c.disconnect();
+                    continue;
+                }
+            }
+            return c;
+        }
+        throw new java.io.IOException("Too many redirects");
+    }
+
     /**
      * Reads a number argument of any numeric type. PluginCall.getLong only
      * accepts values that arrived as a Long, and JSON numbers that fit in an
@@ -135,26 +210,24 @@ public class CadencePlugin extends Plugin {
     @PluginMethod
     public void http(final PluginCall call) {
         final String url = call.getString("url");
-        final String method = call.getString("method", "GET");
+        final String method = call.getString("method", "GET").toUpperCase(java.util.Locale.ROOT);
         final JSObject headers = call.getObject("headers", new JSObject());
         final String bodyB64 = call.getString("bodyBase64");
+        if (!allowedUrl(url)) {
+            call.reject("Blocked: only YouTube and LRCLIB can be contacted");
+            return;
+        }
+        if (!method.equals("GET") && !method.equals("POST") && !method.equals("HEAD")) {
+            call.reject("Method not allowed");
+            return;
+        }
         net.execute(() -> {
             HttpURLConnection c = null;
             try {
-                c = (HttpURLConnection) new URL(url).openConnection();
-                c.setRequestMethod(method);
-                c.setConnectTimeout(15000);
-                c.setReadTimeout(25000);
-                c.setInstanceFollowRedirects(true);
-                Iterator<String> keys = headers.keys();
-                while (keys.hasNext()) {
-                    String k = keys.next();
-                    // Let HttpURLConnection handle compression so bodies arrive decoded.
-                    if (k.equalsIgnoreCase("accept-encoding") || k.equalsIgnoreCase("content-length")) continue;
-                    c.setRequestProperty(k, headers.getString(k));
-                }
-                if (bodyB64 != null && !method.equals("GET") && !method.equals("HEAD")) {
+                c = open(url, method, headers);
+                if (bodyB64 != null && method.equals("POST")) {
                     byte[] body = Base64.decode(bodyB64, Base64.DEFAULT);
+                    if (body.length > 1024 * 1024) throw new java.io.IOException("Request too large");
                     c.setDoOutput(true);
                     c.setFixedLengthStreamingMode(body.length);
                     try (OutputStream os = c.getOutputStream()) {
@@ -162,13 +235,14 @@ public class CadencePlugin extends Plugin {
                     }
                 }
                 int status = c.getResponseCode();
+                if (status >= 300 && status < 400) throw new java.io.IOException("Redirect not allowed here");
                 InputStream in = status >= 400 ? c.getErrorStream() : c.getInputStream();
-                byte[] data = in == null ? new byte[0] : readAll(in);
+                byte[] data = in == null ? new byte[0] : readAll(in, MAX_RESPONSE);
                 JSObject resHeaders = new JSObject();
                 for (Map.Entry<String, List<String>> e : c.getHeaderFields().entrySet()) {
                     if (e.getKey() == null) continue;
-                    String k = e.getKey().toLowerCase();
-                    if (k.equals("content-encoding") || k.equals("content-length") || k.equals("transfer-encoding")) continue;
+                    String k = e.getKey().toLowerCase(java.util.Locale.ROOT);
+                    if (k.equals("content-encoding") || k.equals("content-length") || k.equals("transfer-encoding") || k.equals("set-cookie")) continue;
                     resHeaders.put(k, String.join(", ", e.getValue()));
                 }
                 JSObject ret = new JSObject();
@@ -184,12 +258,20 @@ public class CadencePlugin extends Plugin {
         });
     }
 
-    private static byte[] readAll(InputStream in) throws java.io.IOException {
+    private static byte[] readAll(InputStream in, long cap) throws java.io.IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         byte[] buf = new byte[16384];
         int n;
-        while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-        in.close();
+        long total = 0;
+        try {
+            while ((n = in.read(buf)) > 0) {
+                total += n;
+                if (total > cap) throw new java.io.IOException("Response too large");
+                out.write(buf, 0, n);
+            }
+        } finally {
+            in.close();
+        }
         return out.toByteArray();
     }
 
@@ -211,7 +293,7 @@ public class CadencePlugin extends Plugin {
         final String url = call.getString("url", "");
         final JSObject headers = call.getObject("headers", new JSObject());
         final long sizeHint = num(call, "size", 0L);
-        if (!id.matches("[\\w-]{6,20}") || !ext.matches("[a-z0-9]{2,5}") || !url.matches("https://[^/]+\\.googlevideo\\.com/.*")) {
+        if (!id.matches("[\\w-]{6,20}") || !ext.matches("[a-z0-9]{2,5}") || !isMediaUrl(url)) {
             call.reject("Bad download request");
             return;
         }
@@ -220,20 +302,14 @@ public class CadencePlugin extends Plugin {
             java.io.File fin = new java.io.File(dir, id + "." + ext);
             java.io.File part = new java.io.File(dir, id + "." + ext + ".part");
             long received = 0;
-            long total = sizeHint;
+            long total = Math.max(0, Math.min(sizeHint, MAX_DOWNLOAD));
             try (java.io.FileOutputStream out = new java.io.FileOutputStream(part)) {
                 while (true) {
                     long end = received + CHUNK - 1;
                     if (total > 0) end = Math.min(end, total - 1);
-                    HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-                    c.setConnectTimeout(15000);
-                    c.setReadTimeout(30000);
-                    Iterator<String> keys = headers.keys();
-                    while (keys.hasNext()) {
-                        String k = keys.next();
-                        c.setRequestProperty(k, headers.getString(k));
-                    }
-                    c.setRequestProperty("Range", "bytes=" + received + "-" + end);
+                    JSObject h = new JSObject(headers.toString());
+                    h.put("Range", "bytes=" + received + "-" + end);
+                    HttpURLConnection c = open(url, "GET", h);
                     int status = c.getResponseCode();
                     if (status != 200 && status != 206) {
                         c.disconnect();
@@ -246,6 +322,10 @@ public class CadencePlugin extends Plugin {
                         } catch (NumberFormatException ignored) {
                         }
                     }
+                    if (total > MAX_DOWNLOAD) {
+                        c.disconnect();
+                        throw new java.io.IOException("File too large");
+                    }
                     long got = 0;
                     try (InputStream in = c.getInputStream()) {
                         byte[] buf = new byte[65536];
@@ -253,6 +333,7 @@ public class CadencePlugin extends Plugin {
                         while ((n = in.read(buf)) > 0) {
                             out.write(buf, 0, n);
                             got += n;
+                            if (received + got > MAX_DOWNLOAD) throw new java.io.IOException("File too large");
                         }
                     } finally {
                         c.disconnect();
@@ -289,7 +370,7 @@ public class CadencePlugin extends Plugin {
         String p = call.getString("path", "");
         try {
             java.io.File f = new java.io.File(p).getCanonicalFile();
-            if (!f.getParentFile().equals(downloadsDir().getCanonicalFile())) {
+            if (!f.getParentFile().equals(downloadsDir().getCanonicalFile()) || !f.getName().matches("[\\w-]{6,20}\\.[a-z0-9]{2,5}")) {
                 call.reject("Not a download");
                 return;
             }
@@ -329,9 +410,22 @@ public class CadencePlugin extends Plugin {
         for (Runnable r : run) r.run();
     }
 
-    private static PlaybackService.Source sourceFrom(PluginCall call) {
+    /** Streams from googlevideo, or files in our own downloads folder; nothing else. */
+    private boolean playableUrl(String raw) {
+        if (isMediaUrl(raw)) return true;
+        if (raw == null || !raw.startsWith("file:")) return false;
+        try {
+            java.io.File f = new java.io.File(android.net.Uri.parse(raw).getPath()).getCanonicalFile();
+            return f.getParentFile() != null && f.getParentFile().equals(downloadsDir().getCanonicalFile());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private PlaybackService.Source sourceFrom(PluginCall call) {
         PlaybackService.Source s = new PlaybackService.Source();
         s.url = call.getString("url");
+        if (!playableUrl(s.url)) return null;
         Double g = call.getDouble("gain");
         s.gain = g == null ? 1f : g.floatValue();
         JSObject h = call.getObject("headers", new JSObject());
@@ -345,7 +439,15 @@ public class CadencePlugin extends Plugin {
         s.artist = m.optString("artist", "");
         s.album = m.optString("album", "");
         String art = m.optString("artworkUrl", "");
-        s.artworkUrl = art.isEmpty() ? null : art;
+        // Artwork is fetched by the system media controls: https only.
+        s.artworkUrl = art.startsWith("https://") ? art : null;
+        java.util.Map<String, String> safe = new java.util.HashMap<>();
+        for (java.util.Map.Entry<String, String> e : s.headers.entrySet()) {
+            String key = e.getKey().toLowerCase(java.util.Locale.ROOT);
+            if (BLOCKED_HEADERS.contains(key) || !key.matches("[a-z0-9-]+") || e.getValue().contains("\n") || e.getValue().contains("\r")) continue;
+            safe.put(e.getKey(), e.getValue());
+        }
+        s.headers = safe;
         JSObject ix = call.getObject("index", null);
         if (ix != null) {
             s.mimeType = ix.optString("mimeType", null);
@@ -363,6 +465,10 @@ public class CadencePlugin extends Plugin {
     @PluginMethod
     public void load(final PluginCall call) {
         final PlaybackService.Source s = sourceFrom(call);
+        if (s == null) {
+            call.reject("Not a playable URL");
+            return;
+        }
         final long start = num(call, "startMs", 0L);
         final boolean autoplay = call.getBoolean("autoplay", true);
         withService(() -> {
@@ -374,6 +480,10 @@ public class CadencePlugin extends Plugin {
     @PluginMethod
     public void prepareNext(final PluginCall call) {
         final PlaybackService.Source s = sourceFrom(call);
+        if (s == null) {
+            call.reject("Not a playable URL");
+            return;
+        }
         withService(() -> {
             PlaybackService.instance.prepareNext(s);
             call.resolve();

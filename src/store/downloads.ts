@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { SeekIndex, Track } from '../yt/types';
 import { getStream, reportRefused } from '../yt/api';
 import { deleteFile, downloadFile, downloadsSupported } from '../platform/download';
+import { platform } from '../platform';
 import { diag } from '../lib/diag';
 import { toast } from './toast';
 
@@ -175,7 +176,15 @@ export const useDownloads = create<DownloadsStore>()(
 
 /** A downloaded copy of this track, if there is one. */
 export function localCopy(id: string): Downloaded | undefined {
-  return useDownloads.getState().done[id];
+  const d = useDownloads.getState().done[id];
+  if (!d) return undefined;
+  // Windows builds before the app:// scheme stored file:// URLs; the page can
+  // no longer load those, so serve the same file through app://media.
+  if (platform === 'electron' && d.url.startsWith('file:')) {
+    const name = d.url.split('/').pop() ?? '';
+    return { ...d, url: `app://media/${name}` };
+  }
+  return d;
 }
 
 /** The file failed to play (deleted outside the app, say): forget it. */

@@ -14,3 +14,8 @@ export function hrefFor(c: Pick<Card, 'kind' | 'id' | 'params'>): string | null 
       return null;
   }
 }
+
+/** Only https and inline images are shown; anything else in YouTube data is dropped. */
+export function safeImage(src: string | undefined): string | undefined {
+  return src && /^(https:\/\/|data:image\/)/i.test(src) ? src : undefined;
+}

@@ -11,6 +11,7 @@ import { QueueView } from './Queue';
 import { openMenu } from './menu';
 import { Explicit } from './TrackRow';
 import type { Track } from '../yt/types';
+import { safeImage } from '../lib/nav';
 
 function LikeButton({ track }: { track: Track }) {
   const liked = useLibrary((s) => s.liked.some((t) => t.id === track.id));
@@ -126,7 +127,7 @@ export function NowPlaying() {
 
   const bg = (
     <div className="absolute inset-0 overflow-hidden bg-neutral-900">
-      {track.thumb && <div className="np-bg" style={{ backgroundImage: `url("${track.thumb}")` }} />}
+      {safeImage(track.thumb) && <div className="np-bg" style={{ backgroundImage: `url(${JSON.stringify(safeImage(track.thumb))})` }} />}
       <div className="absolute inset-0 bg-black/25" />
     </div>
   );

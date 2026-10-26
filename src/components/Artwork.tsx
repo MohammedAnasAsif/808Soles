@@ -1,5 +1,6 @@
 import { Music2, User } from 'lucide-react';
 import { useState } from 'react';
+import { safeImage } from '../lib/nav';
 
 interface Props {
   src?: string;
@@ -14,7 +15,8 @@ interface Props {
   eager?: boolean;
 }
 
-export function Artwork({ src, alt = '', className = '', round, radius = 8, shadow = true, square = true, eager }: Props) {
+export function Artwork({ src: rawSrc, alt = '', className = '', round, radius = 8, shadow = true, square = true, eager }: Props) {
+  const src = safeImage(rawSrc);
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const style = {

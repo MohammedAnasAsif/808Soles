@@ -6,6 +6,7 @@ import { useSettings } from './settings';
 import { useLibrary } from './library';
 import { toast } from './toast';
 import { diag } from '../lib/diag';
+import { safeImage } from '../lib/nav';
 import { forgetLocal, localCopy, useDownloads } from './downloads';
 
 export type Repeat = 'off' | 'all' | 'one';
@@ -107,7 +108,7 @@ function toSource(track: Track, s: StreamInfo): Source {
       title: track.title,
       artist: track.artists.map((a) => a.name).join(', '),
       album: track.album?.name,
-      artworkUrl: track.thumb,
+      artworkUrl: safeImage(track.thumb),
     },
   };
 }
