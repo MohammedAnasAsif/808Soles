@@ -1,6 +1,6 @@
 {
-  "name": "cadence",
-  "productName": "Cadence",
+  "name": "808soles",
+  "productName": "808Soles",
   "version": "0.1.0",
   "description": "An open-source YouTube Music player for Windows and Android",
   "license": "GPL-3.0-or-later",
@@ -43,8 +43,8 @@
     "zustand": "^5.0.16"
   },
   "build": {
-    "appId": "app.cadence.player",
-    "productName": "Cadence",
+    "appId": "app.soles808.player",
+    "productName": "808Soles",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -59,14 +59,14 @@
         "nsis"
       ],
       "icon": "build/icon.png",
-      "artifactName": "Cadence-Setup-${version}.${ext}"
+      "artifactName": "808Soles-Setup-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "Cadence",
-      "artifactName": "Cadence-Setup-${version}.${ext}"
+      "shortcutName": "808Soles",
+      "artifactName": "808Soles-Setup-${version}.${ext}"
     },
     "asar": true
   }

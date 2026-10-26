@@ -1,4 +1,4 @@
-# Cadence
+# 808Soles
 
 An open-source YouTube Music player for **Android** and **Windows**, with an Apple Music–style interface.
 
@@ -18,8 +18,8 @@ No account and no server: the app talks to YouTube Music directly. It is not aff
 
 Every push to `main` builds both apps on GitHub Actions and publishes them on the **Latest build** release (Releases → Latest build):
 
-- **Android:** open `Cadence.apk` on your phone and allow installing from your browser when asked.
-- **Windows:** run `Cadence-Setup.exe`. It isn't code-signed, so SmartScreen may warn: *More info → Run anyway*.
+- **Android:** open `808Soles.apk` on your phone and allow installing from your browser when asked.
+- **Windows:** run `808Soles-Setup.exe`. It isn't code-signed, so SmartScreen may warn: *More info → Run anyway*.
 
 Tag a commit `v1.0.0` (`git tag v1.0.0 && git push --tags`) for a versioned release.
 
@@ -65,10 +65,10 @@ npm test
 | YouTube Music data, via [YouTube.js](https://github.com/LuanRT/YouTube.js) | `src/yt` |
 | Queue and playback logic | `src/store/player.ts` |
 | Audio engines: two decks with crossfade | `src/audio` (desktop), `android/.../PlaybackService.java` (Android) |
-| Native bridge (HTTP + playback) | `android/.../CadencePlugin.java`, `electron/main.cjs` |
+| Native bridge (HTTP + playback) | `android/.../CadencePlugin.java` (internal name), `electron/main.cjs` |
 | Builds | `.github/workflows/build.yml` |
 
-Streams come from YouTube's VISIONOS client first (direct audio URLs, no PO token), falling back to ANDROID_VR, IOS and TV. Age-restricted tracks need a signed-in account, which Cadence doesn't support yet.
+Streams come from YouTube's VISIONOS client first (direct audio URLs, no PO token), falling back to ANDROID_VR, IOS and TV. Age-restricted tracks need a signed-in account, which 808Soles doesn't support yet.
 
 ## License
 

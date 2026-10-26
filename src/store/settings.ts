@@ -22,6 +22,6 @@ export const useSettings = create<Settings>()(
       theme: 'system',
       set: (p) => set(p),
     }),
-    { name: 'cadence.settings' },
+    { name: '808soles.settings' },
   ),
 );

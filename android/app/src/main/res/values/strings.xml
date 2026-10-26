@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Cadence</string>
-    <string name="title_activity_main">Cadence</string>
-    <string name="package_name">app.cadence.player</string>
-    <string name="custom_url_scheme">app.cadence.player</string>
+    <string name="app_name">808Soles</string>
+    <string name="title_activity_main">808Soles</string>
+    <string name="package_name">app.soles808.player</string>
+    <string name="custom_url_scheme">app.soles808.player</string>
 </resources>

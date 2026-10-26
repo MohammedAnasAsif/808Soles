@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.cadence.player',
-  appName: 'Cadence',
+  appId: 'app.soles808.player',
+  appName: '808Soles',
   webDir: 'dist',
   android: {
     backgroundColor: '#000000',

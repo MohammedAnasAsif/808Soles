@@ -77,12 +77,12 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon --stacktrace
           mkdir -p ../out
-          cp app/build/outputs/apk/release/*.apk ../out/Cadence.apk
+          cp app/build/outputs/apk/release/*.apk ../out/808Soles.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: cadence-android
-          path: out/Cadence.apk
+          name: soles808-android
+          path: out/808Soles.apk
 
   windows:
     needs: check
@@ -103,11 +103,11 @@ jobs:
         shell: bash
         run: |
           mkdir -p out
-          cp release/*.exe out/Cadence-Setup.exe
+          cp release/*.exe out/808Soles-Setup.exe
       - uses: actions/upload-artifact@v4
         with:
-          name: cadence-windows
-          path: out/Cadence-Setup.exe
+          name: soles808-windows
+          path: out/808Soles-Setup.exe
 
   release:
     needs: [android, windows]
@@ -124,10 +124,10 @@ jobs:
         run: |
           ls -la out
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            gh release create "$GITHUB_REF_NAME" out/* --repo "$REPO" --title "Cadence $GITHUB_REF_NAME" --generate-notes
+            gh release create "$GITHUB_REF_NAME" out/* --repo "$REPO" --title "808Soles $GITHUB_REF_NAME" --generate-notes
           else
             gh release delete latest-build --repo "$REPO" --cleanup-tag -y || true
             gh release create latest-build out/* --repo "$REPO" --target "$GITHUB_SHA" --prerelease \
               --title "Latest build" \
-              --notes "Built from $GITHUB_SHA. Android: download Cadence.apk on your phone and open it. Windows: run Cadence-Setup.exe."
+              --notes "Built from $GITHUB_SHA. Android: download 808Soles.apk on your phone and open it. Windows: run 808Soles-Setup.exe."
           fi

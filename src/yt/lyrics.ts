@@ -1,7 +1,7 @@
 import { getYouTubeLyrics, http } from './api';
 import type { LyricLine, Lyrics, Track } from './types';
 
-const UA = 'Cadence/0.1 (open-source music player)';
+const UA = '808Soles/0.1 (open-source music player)';
 
 /** Parses "[mm:ss.xx] line" LRC text. Lines with several stamps repeat. */
 export function parseLrc(lrc: string): LyricLine[] {

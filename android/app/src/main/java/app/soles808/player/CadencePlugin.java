@@ -1,4 +1,4 @@
-package app.cadence.player;
+package app.soles808.player;
 
 import android.content.ComponentName;
 import android.os.Handler;

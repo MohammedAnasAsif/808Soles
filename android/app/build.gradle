@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "app.cadence.player"
+    namespace = "app.soles808.player"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "app.cadence.player"
+        applicationId "app.soles808.player"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode (System.getenv("VERSION_CODE") ?: "1").toInteger()

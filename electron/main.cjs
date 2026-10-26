@@ -1,4 +1,4 @@
-// Cadence for Windows: the Electron main process.
+// 808Soles for Windows: the Electron main process.
 // It opens the window, makes YouTube requests on the page's behalf (no CORS,
 // any header), and adds the right headers to audio stream requests.
 const { app, BrowserWindow, ipcMain, nativeTheme, session, shell, Menu } = require('electron');
@@ -31,7 +31,7 @@ function createWindow() {
     height: 820,
     minWidth: 380,
     minHeight: 560,
-    title: 'Cadence',
+    title: '808Soles',
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#000000' : '#ffffff',
     titleBarStyle: 'hidden',
     titleBarOverlay: overlayColors(),

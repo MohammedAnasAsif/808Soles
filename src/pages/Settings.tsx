@@ -93,7 +93,7 @@ export default function Settings() {
         />
       </Group>
 
-      <Group title="About" footer="Cadence is free and open source (GPL-3.0). It is not affiliated with YouTube or Google. Your library is stored only on this device.">
+      <Group title="About" footer="808Soles is free and open source (GPL-3.0). It is not affiliated with YouTube or Google. Your library is stored only on this device.">
         <div className="flex justify-between px-4 py-2.5 text-[17px]">
           <span>Version</span>
           <span className="text-label2">{__APP_VERSION__}</span>

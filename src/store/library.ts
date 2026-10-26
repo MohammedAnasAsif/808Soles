@@ -121,7 +121,7 @@ export const useLibrary = create<Library>()(
         })),
     }),
     {
-      name: 'cadence.library',
+      name: '808soles.library',
       partialize: (s) => ({
         liked: s.liked,
         albums: s.albums,
