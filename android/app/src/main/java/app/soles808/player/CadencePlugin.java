@@ -90,6 +90,24 @@ public class CadencePlugin extends Plugin {
         if (controller != null) MediaController.releaseFuture(controller);
     }
 
+    /**
+     * Reads a number argument of any numeric type. PluginCall.getLong only
+     * accepts values that arrived as a Long, and JSON numbers that fit in an
+     * int arrive as Integer, so getLong("positionMs") returned the default (0)
+     * for any seek under ~24 days: every seek restarted the song.
+     */
+    private static long num(PluginCall call, String name, long def) {
+        Object v = call.getData().opt(name);
+        if (v instanceof Number) return ((Number) v).longValue();
+        if (v instanceof String) {
+            try {
+                return (long) Double.parseDouble((String) v);
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return def;
+    }
+
     /* ------------------------------- HTTP -------------------------------- */
 
     @PluginMethod
@@ -170,7 +188,7 @@ public class CadencePlugin extends Plugin {
         final String ext = call.getString("ext", "audio");
         final String url = call.getString("url", "");
         final JSObject headers = call.getObject("headers", new JSObject());
-        final long sizeHint = call.getLong("size", 0L);
+        final long sizeHint = num(call, "size", 0L);
         if (!id.matches("[\\w-]{6,20}") || !ext.matches("[a-z0-9]{2,5}") || !url.matches("https://[^/]+\\.googlevideo\\.com/.*")) {
             call.reject("Bad download request");
             return;
@@ -323,7 +341,7 @@ public class CadencePlugin extends Plugin {
     @PluginMethod
     public void load(final PluginCall call) {
         final PlaybackService.Source s = sourceFrom(call);
-        final long start = call.getLong("startMs", 0L);
+        final long start = num(call, "startMs", 0L);
         final boolean autoplay = call.getBoolean("autoplay", true);
         withService(() -> {
             PlaybackService.instance.load(s, start, autoplay);
@@ -366,7 +384,7 @@ public class CadencePlugin extends Plugin {
 
     @PluginMethod
     public void seek(final PluginCall call) {
-        final long ms = call.getLong("positionMs", 0L);
+        final long ms = num(call, "positionMs", 0L);
         withService(() -> {
             PlaybackService.instance.seek(ms);
             call.resolve();
@@ -375,7 +393,7 @@ public class CadencePlugin extends Plugin {
 
     @PluginMethod
     public void setCrossfade(final PluginCall call) {
-        final long ms = call.getLong("ms", 0L);
+        final long ms = num(call, "ms", 0L);
         withService(() -> {
             PlaybackService.instance.setCrossfade(ms);
             call.resolve();
