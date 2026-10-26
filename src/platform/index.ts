@@ -22,6 +22,8 @@ export interface ElectronBridge {
   /** Headers the main process adds to this media URL's requests. */
   registerMedia(url: string, headers: Record<string, string>): void;
   windowControl(action: 'minimize' | 'maximize' | 'close'): void;
+  /** Recent googlevideo HTTP results from the main process. */
+  mediaLog(): Promise<string[]>;
   platform: string;
 }
 

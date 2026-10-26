@@ -42,7 +42,7 @@ describe('helpers', () => {
 });
 
 describe.skipIf(!have)('YouTube Music pages from fixtures', () => {
-  beforeAll(() => configureClient({ fetch: fixtureFetch }));
+  beforeAll(() => configureClient({ fetch: fixtureFetch, localSession: true }));
 
   it('home has shelves of cards', async () => {
     const shelves = await getHome();

@@ -4,9 +4,10 @@
  * not limited by CORS.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Innertube, Platform, YTNodes, Constants } from 'youtubei.js';
+import { Innertube, Platform, YTNodes, Constants, UniversalCache } from 'youtubei.js';
 import type { Types } from 'youtubei.js';
 import { platformFetch } from '../platform';
+import { diag } from '../lib/diag';
 import {
   albumFrom,
   artistFrom,
@@ -18,21 +19,29 @@ import {
 } from './normalize';
 import type { AlbumPage, ArtistPage, PlaylistPage, SearchResults, Shelf, StreamInfo, Track } from './types';
 
-/* YouTube.js runs a few lines of the YouTube player to decipher stream URLs. */
-Platform.shim.eval = (data: { output: string }, env: Record<string, unknown>) => {
-  const call = `return process(${JSON.stringify(env.n ?? '')}, ${JSON.stringify(env.sp ?? '')}, ${JSON.stringify(env.sig ?? '')});`;
+/*
+ * Our requests are made natively (Electron's main process, Android's HTTP
+ * stack), not by a browser, so YouTube.js should behave as it does on a
+ * server: set User-Agent and Origin itself instead of leaving them to the
+ * browser.
+ */
+Platform.shim.server = true;
+
+/* YouTube.js runs a few lines of the YouTube player to decipher stream URLs.
+   The script it builds ends with its own `return process(...)`. */
+Platform.shim.eval = (data: { output: string }) => {
   // eslint-disable-next-line @typescript-eslint/no-implied-eval
-  return new Function(`${data.output}\n${call}`)();
+  return new Function(data.output)();
 };
 
-let browseClient: Promise<Innertube> | null = null;
-let streamClient: Promise<Innertube> | null = null;
+let client: Promise<Innertube> | null = null;
 
 const baseOptions = {
   fetch: platformFetch,
-  generate_session_locally: true,
   lang: (typeof navigator !== 'undefined' && navigator.language?.split('-')[0]) || 'en',
   location: undefined as string | undefined,
+  /** Tests use a locally generated session; the app asks YouTube for a real one. */
+  localSession: false,
 };
 
 /** The fetch everything uses (swappable for tests). */
@@ -41,30 +50,60 @@ export function http(input: RequestInfo | URL, init?: RequestInit): Promise<Resp
 }
 
 /** Lets tests and settings swap the fetch or region. */
-export function configureClient(opts: { fetch?: typeof fetch; location?: string }) {
+export function configureClient(opts: { fetch?: typeof fetch; location?: string; localSession?: boolean }) {
   if (opts.fetch) baseOptions.fetch = opts.fetch;
   if (opts.location !== undefined) baseOptions.location = opts.location || undefined;
-  browseClient = null;
-  streamClient = null;
+  if (opts.localSession !== undefined) baseOptions.localSession = opts.localSession;
+  client = null;
   cache.clear();
 }
 
-/** For browsing: no player download, so it starts quickly. */
-function browse(): Promise<Innertube> {
-  browseClient ??= Innertube.create({ ...baseOptions, retrieve_player: false }).catch((e) => {
-    browseClient = null;
-    throw e;
-  });
-  return browseClient;
+function hasIndexedDb(): boolean {
+  try {
+    return typeof indexedDB !== 'undefined';
+  } catch {
+    return false;
+  }
 }
 
-/** For streams: fetches the YouTube player, which deciphering needs. */
-function streams(): Promise<Innertube> {
-  streamClient ??= Innertube.create({ ...baseOptions, retrieve_player: true }).catch((e) => {
-    streamClient = null;
+/**
+ * One YouTube session for browsing and streams. It is fetched from YouTube
+ * (not generated locally: YouTube treats made-up sessions as bots, asks them
+ * to "sign in to confirm you're not a bot" and refuses their stream URLs),
+ * and it includes the YouTube player, which deciphering stream URLs needs.
+ * The session is cached on the device between launches.
+ */
+function yt(): Promise<Innertube> {
+  client ??= (async () => {
+    const started = Date.now();
+    const created = await Innertube.create({
+      fetch: baseOptions.fetch,
+      lang: baseOptions.lang,
+      location: baseOptions.location,
+      generate_session_locally: baseOptions.localSession,
+      retrieve_player: !baseOptions.localSession,
+      cache: !baseOptions.localSession && hasIndexedDb() ? new UniversalCache(true) : undefined,
+    });
+    const c = created.session.context.client;
+    diag(
+      `session ready in ${Date.now() - started}ms: ${c.clientName} ${c.clientVersion}, visitor ${c.visitorData ? 'yes' : 'NO'}, ` +
+        `player ${created.session.player?.player_id ?? 'none'}, sts ${created.session.player?.signature_timestamp ?? '-'}`,
+    );
+    return created;
+  })().catch((e) => {
+    diag(`session failed: ${e instanceof Error ? e.message : String(e)}`);
+    client = null;
     throw e;
   });
-  return streamClient;
+  return client;
+}
+
+const browse = yt;
+const streams = yt;
+
+/** Start the session early so the first play doesn't wait for it. */
+export function warmUp() {
+  void yt().catch(() => {});
 }
 
 /* ------------------------------- caching ------------------------------ */
@@ -265,11 +304,13 @@ export async function getStream(videoId: string, quality: Quality = 'high'): Pro
   for (const client of STREAM_CLIENTS) {
     const key = `${client}:${videoId}`;
     if ((refusedUntil.get(key) ?? 0) > Date.now()) continue;
+    const started = Date.now();
     try {
       const info: any = await yt.getBasicInfo(videoId, { client });
       const status = info.playability_status?.status;
       if (status && status !== 'OK') {
         lastReason = info.playability_status?.reason ?? status;
+        diag(`${videoId} ${client}: ${status} "${lastReason}" (${Date.now() - started}ms)`);
         if (status === 'LOGIN_REQUIRED' && /age/i.test(String(lastReason))) age = true;
         refusedUntil.set(key, Date.now() + 10 * 60 * 1000);
         continue;
@@ -278,11 +319,17 @@ export async function getStream(videoId: string, quality: Quality = 'high'): Pro
       const f = pickFormat(formats, quality);
       if (!f) {
         lastReason = 'No audio formats';
+        diag(`${videoId} ${client}: OK but no direct audio URLs (sabr=${!!info.streaming_data?.server_abr_streaming_url})`);
+        refusedUntil.set(key, Date.now() + 10 * 60 * 1000);
         continue;
       }
       let url: string = await f.decipher(yt.session.player);
       if (!url) url = f.url;
-      if (!url) continue;
+      if (!url) {
+        diag(`${videoId} ${client}: could not build a stream URL`);
+        continue;
+      }
+      diag(`${videoId} ${client}: OK itag ${f.itag} ${String(f.mime_type).split(';')[0]} ${Math.round((f.bitrate ?? 0) / 1000)}kbps (${Date.now() - started}ms)`);
       const expire = Number(new URL(url).searchParams.get('expire') ?? 0) * 1000;
       return {
         url,
@@ -296,6 +343,7 @@ export async function getStream(videoId: string, quality: Quality = 'high'): Pro
       };
     } catch (e) {
       lastReason = e instanceof Error ? e.message : String(e);
+      diag(`${videoId} ${client}: error ${lastReason}`);
     }
   }
   if (age) throw new StreamError('This track is age-restricted on YouTube.', 'age');
@@ -304,6 +352,7 @@ export async function getStream(videoId: string, quality: Quality = 'high'): Pro
 
 /** Mark a client's URL as refused mid-playback (HTTP 403), so the next resolve skips it. */
 export function reportRefused(videoId: string, client: string) {
+  diag(`${videoId} ${client}: stream URL refused during playback; trying another client`);
   refusedUntil.set(`${client}:${videoId}`, Date.now() + 10 * 60 * 1000);
 }
 

@@ -1,4 +1,5 @@
 import { NativeCadence } from '../platform';
+import { diag } from '../lib/diag';
 import type { Engine, EngineEvents, Source } from './engine';
 
 const noop: EngineEvents = {
@@ -28,9 +29,10 @@ export class NativeEngine implements Engine {
     );
     void NativeCadence.addListener('advanced', () => this.events.advanced());
     void NativeCadence.addListener('ended', () => this.events.ended());
-    void NativeCadence.addListener('error', (e) =>
-      this.events.error(e.message, e.httpStatus === 403 || e.httpStatus === 410 || e.httpStatus === 401),
-    );
+    void NativeCadence.addListener('error', (e) => {
+      diag(`native player error: ${e.message}${e.httpStatus ? ` HTTP ${e.httpStatus}` : ''}`);
+      this.events.error(e.message, e.httpStatus === 403 || e.httpStatus === 410 || e.httpStatus === 401);
+    });
     void NativeCadence.addListener('remote', (e) => this.events.remote(e.action));
     void NativeCadence.requestNotificationPermission().catch(() => {});
   }

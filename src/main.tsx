@@ -4,6 +4,9 @@ import App from './App';
 import './index.css';
 import { usePlayer } from './store/player';
 import { useLibrary } from './store/library';
+import { warmUp } from './yt/api';
+
+warmUp();
 
 if (import.meta.env.DEV) {
   // Handy in development tools.

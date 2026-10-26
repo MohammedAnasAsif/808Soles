@@ -5,6 +5,7 @@ import type { StreamInfo, Track } from '../yt/types';
 import { useSettings } from './settings';
 import { useLibrary } from './library';
 import { toast } from './toast';
+import { diag } from '../lib/diag';
 
 export type Repeat = 'off' | 'all' | 'one';
 
@@ -156,6 +157,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
       if (gen !== generation) return;
       set({ loading: false });
       const msg = e instanceof StreamError ? e.message : 'Couldn’t play this song.';
+      diag(`${track.id} "${track.title}": could not start: ${e instanceof Error ? e.message : String(e)}`);
       toast(`${track.title}: ${msg}`);
       // Skip what can't be played, unless it's the only thing left.
       const n = nextIndex(i);

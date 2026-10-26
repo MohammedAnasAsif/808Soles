@@ -1,4 +1,6 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { diagLines, onDiag } from '../lib/diag';
+import { toast } from '../store/toast';
 import { Page } from '../components/Page';
 import { useSettings } from '../store/settings';
 import type { Quality } from '../yt/api';
@@ -40,6 +42,39 @@ function Choice<T extends string>({ value, options, onChange }: { value: T; opti
         </button>
       ))}
     </>
+  );
+}
+
+function Diagnostics() {
+  const [lines, setLines] = useState(diagLines());
+  const [media, setMedia] = useState<string[]>([]);
+  useEffect(() => onDiag(() => setLines(diagLines())), []);
+  useEffect(() => {
+    const load = () => window.cadence?.mediaLog?.().then(setMedia).catch(() => {});
+    load();
+    const t = setInterval(load, 3000);
+    return () => clearInterval(t);
+  }, []);
+  const all = [...lines, ...(media.length ? ['--- audio stream requests ---', ...media] : [])];
+  const text = [`808Soles ${__APP_VERSION__} on ${navigator.userAgent}`, ...all].join('\n');
+  return (
+    <Group title="Diagnostics" footer="If songs won't play, copy this and send it to whoever maintains the app. It contains no personal data, only what playback tried.">
+      <div className="px-4 py-3">
+        <pre className="scroll max-h-[260px] whitespace-pre-wrap break-all font-mono text-[11px] leading-4 text-label2 select-text">{all.length ? all.slice(-80).join('\n') : 'Nothing yet. Play a song first.'}</pre>
+        <button
+          type="button"
+          onClick={() => {
+            void navigator.clipboard?.writeText(text).then(
+              () => toast('Diagnostics copied'),
+              () => toast('Couldn’t copy. Select the text instead.'),
+            );
+          }}
+          className="mt-3 rounded-lg bg-fill px-4 py-2 text-[15px] font-semibold text-accent"
+        >
+          Copy Diagnostics
+        </button>
+      </div>
+    </Group>
   );
 }
 
@@ -92,6 +127,8 @@ export default function Settings() {
           ]}
         />
       </Group>
+
+      <Diagnostics />
 
       <Group title="About" footer="808Soles is free and open source (GPL-3.0). It is not affiliated with YouTube or Google. Your library is stored only on this device.">
         <div className="flex justify-between px-4 py-2.5 text-[17px]">

@@ -1,5 +1,6 @@
 import type { Engine, EngineEvents, Source } from './engine';
 import { fadeCurve } from './curves';
+import { diag } from '../lib/diag';
 
 interface Deck {
   el: HTMLAudioElement;
@@ -91,7 +92,7 @@ export class WebEngine implements Engine {
       d.el.currentTime = startAt;
     }
     this.wantPlaying = autoplay;
-    if (autoplay) await d.el.play().catch((e) => this.events.error(String(e), false));
+    if (autoplay) await d.el.play().catch((e) => this.playRejected(e));
     this.updateMetadata();
     this.emit();
   }
@@ -117,7 +118,7 @@ export class WebEngine implements Engine {
 
   play() {
     this.wantPlaying = true;
-    this.cur.el.play().catch((e) => this.events.error(String(e), false));
+    this.cur.el.play().catch((e) => this.playRejected(e));
     if (this.fading) this.other.el.play().catch(() => {});
   }
 
@@ -167,7 +168,7 @@ export class WebEngine implements Engine {
     const next = this.other;
     next.fade = 0;
     this.applyVolume(next);
-    next.el.play().catch((e) => this.events.error(String(e), false));
+    next.el.play().catch((e) => this.playRejected(e));
     this.fading = { start: performance.now(), length: this.crossfade * 1000 };
     this.advance();
   }
@@ -230,10 +231,24 @@ export class WebEngine implements Engine {
     }
   }
 
+  /** play() rejects when loading fails too; the 'error' event handles that case. */
+  private playRejected(e: unknown) {
+    const name = e instanceof DOMException ? e.name : '';
+    diag(`play() rejected: ${name} ${e instanceof Error ? e.message : String(e)}`);
+    if (name === 'NotAllowedError') this.events.error('Playback was blocked by the system.', false);
+  }
+
   private onError(i: number) {
     const d = this.decks[i];
     if (!d.src) return;
     const err = d.el.error;
+    diag(`audio element error on ${i === this.active ? 'current' : 'next'} deck: code ${err?.code} ${err?.message ?? ''} c=${(() => {
+      try {
+        return new URL(d.src!.url).searchParams.get('c');
+      } catch {
+        return '?';
+      }
+    })()}`);
     const refused = !!err && (err.code === MediaError.MEDIA_ERR_NETWORK || err.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED);
     if (i === this.active) this.events.error(err?.message || 'Playback failed', refused);
     else this.nextReady = false; // next will be resolved again when needed

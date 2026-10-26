@@ -18,6 +18,21 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 /** client name (the `c` URL parameter) -> headers for googlevideo requests */
 const mediaHeaders = new Map();
 
+/** Recent audio-stream responses, for Settings → Diagnostics. */
+const mediaLog = [];
+function logMedia(line) {
+  mediaLog.push(`${new Date().toISOString().slice(11, 19)} ${line}`);
+  if (mediaLog.length > 60) mediaLog.shift();
+}
+function mediaLabel(url) {
+  try {
+    const u = new URL(url);
+    return `c=${u.searchParams.get('c')} itag=${u.searchParams.get('itag')} host=${u.hostname.split('.')[0]}`;
+  } catch {
+    return url.slice(0, 60);
+  }
+}
+
 let win = null;
 
 function overlayColors() {
@@ -79,6 +94,9 @@ app.on('second-instance', () => {
   }
 });
 
+// A plain Chrome user agent: no "Electron/…" or app name, which YouTube may treat as a bot.
+app.userAgentFallback = app.userAgentFallback.replace(/\s(Electron|808soles|808Soles)\/\S+/g, '');
+
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
 
@@ -110,6 +128,8 @@ app.whenReady().then(() => {
     }
   });
 
+  ipcMain.handle('media-log', () => [...mediaLog]);
+
   ipcMain.on('window-control', (_e, action) => {
     if (!win) return;
     if (action === 'minimize') win.minimize();
@@ -134,6 +154,12 @@ app.whenReady().then(() => {
     const extra = mediaHeaders.get(c) || mediaHeaders.get('*') || {};
     for (const [k, v] of Object.entries(extra)) h[k] = v;
     cb({ requestHeaders: h });
+  });
+  session.defaultSession.webRequest.onCompleted({ urls: ['*://*.googlevideo.com/*'] }, (d) => {
+    if (d.statusCode >= 400 || mediaLog.length < 5) logMedia(`HTTP ${d.statusCode} ${mediaLabel(d.url)}`);
+  });
+  session.defaultSession.webRequest.onErrorOccurred({ urls: ['*://*.googlevideo.com/*'] }, (d) => {
+    logMedia(`network error ${d.error} ${mediaLabel(d.url)}`);
   });
 
   createWindow();
