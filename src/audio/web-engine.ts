@@ -67,6 +67,7 @@ export class WebEngine implements Engine {
   }
 
   private register(src: Source) {
+    if (!src.url.startsWith('http')) return;
     window.cadence?.registerMedia(src.url, src.headers);
   }
 

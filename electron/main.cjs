@@ -3,6 +3,8 @@
 // any header), and adds the right headers to audio stream requests.
 const { app, BrowserWindow, ipcMain, nativeTheme, session, shell, Menu } = require('electron');
 const path = require('node:path');
+const fs = require('node:fs');
+const { pathToFileURL } = require('node:url');
 
 const isDev = !app.isPackaged && process.env.CADENCE_DEV_URL;
 
@@ -129,6 +131,61 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('media-log', () => [...mediaLog]);
+
+  // ---- Offline downloads: saved under the app's data folder. ----
+  const downloadsDir = path.join(app.getPath('userData'), 'downloads');
+  const CHUNK = 4 * 1024 * 1024;
+
+  ipcMain.handle('download', async (e, job) => {
+    if (!/^[\w-]{6,20}$/.test(String(job.id)) || !/^[a-z0-9]{2,5}$/.test(String(job.ext))) throw new Error('Bad download request');
+    if (!/^https:\/\/[^/]+\.googlevideo\.com\//.test(String(job.url))) throw new Error('Only YouTube audio streams can be downloaded');
+    fs.mkdirSync(downloadsDir, { recursive: true });
+    const final = path.join(downloadsDir, `${job.id}.${job.ext}`);
+    const part = `${final}.part`;
+    const out = fs.openSync(part, 'w');
+    let received = 0;
+    let total = Number(job.size) || 0;
+    const report = () => {
+      if (!e.sender.isDestroyed()) e.sender.send('download-progress', { id: job.id, received, total });
+    };
+    try {
+      // Ranged requests: googlevideo throttles or cuts off long single requests.
+      for (;;) {
+        const end = received + CHUNK - 1;
+        const res = await api.fetch(job.url, {
+          headers: { ...job.headers, Range: `bytes=${received}-${total ? Math.min(end, total - 1) : end}` },
+          credentials: 'omit',
+        });
+        if (res.status !== 206 && res.status !== 200) throw new Error(`HTTP ${res.status}`);
+        const cr = res.headers.get('content-range');
+        const m = cr && /\/(\d+)$/.exec(cr);
+        if (m) total = Number(m[1]);
+        const buf = Buffer.from(await res.arrayBuffer());
+        if (!buf.length) break;
+        fs.writeSync(out, buf);
+        received += buf.length;
+        report();
+        if (res.status === 200 || (total && received >= total)) break;
+      }
+      fs.closeSync(out);
+      fs.renameSync(part, final);
+      return { path: final, url: pathToFileURL(final).href, size: received };
+    } catch (err) {
+      try {
+        fs.closeSync(out);
+      } catch {
+        /* already closed */
+      }
+      fs.rmSync(part, { force: true });
+      throw err;
+    }
+  });
+
+  ipcMain.handle('delete-download', (_e, file) => {
+    const resolved = path.resolve(String(file));
+    if (!resolved.startsWith(downloadsDir + path.sep)) throw new Error('Not a download');
+    fs.rmSync(resolved, { force: true });
+  });
 
   ipcMain.on('window-control', (_e, action) => {
     if (!win) return;

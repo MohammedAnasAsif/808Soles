@@ -55,6 +55,7 @@ export function configureClient(opts: { fetch?: typeof fetch; location?: string;
   if (opts.location !== undefined) baseOptions.location = opts.location || undefined;
   if (opts.localSession !== undefined) baseOptions.localSession = opts.localSession;
   client = null;
+  browseOnly = null;
   cache.clear();
 }
 
@@ -73,32 +74,48 @@ function hasIndexedDb(): boolean {
  * and it includes the YouTube player, which deciphering stream URLs needs.
  * The session is cached on the device between launches.
  */
+async function createClient(withPlayer: boolean): Promise<Innertube> {
+  const started = Date.now();
+  const created = await Innertube.create({
+    fetch: baseOptions.fetch,
+    lang: baseOptions.lang,
+    location: baseOptions.location,
+    generate_session_locally: baseOptions.localSession,
+    retrieve_player: withPlayer && !baseOptions.localSession,
+    cache: !baseOptions.localSession && hasIndexedDb() ? new UniversalCache(true) : undefined,
+  });
+  const c = created.session.context.client;
+  diag(
+    `session ready in ${Date.now() - started}ms: ${c.clientName} ${c.clientVersion}, visitor ${c.visitorData ? 'yes' : 'NO'}, ` +
+      `player ${created.session.player?.player_id ?? 'none'}, sts ${created.session.player?.signature_timestamp ?? '-'}`,
+  );
+  return created;
+}
+
 function yt(): Promise<Innertube> {
-  client ??= (async () => {
-    const started = Date.now();
-    const created = await Innertube.create({
-      fetch: baseOptions.fetch,
-      lang: baseOptions.lang,
-      location: baseOptions.location,
-      generate_session_locally: baseOptions.localSession,
-      retrieve_player: !baseOptions.localSession,
-      cache: !baseOptions.localSession && hasIndexedDb() ? new UniversalCache(true) : undefined,
-    });
-    const c = created.session.context.client;
-    diag(
-      `session ready in ${Date.now() - started}ms: ${c.clientName} ${c.clientVersion}, visitor ${c.visitorData ? 'yes' : 'NO'}, ` +
-        `player ${created.session.player?.player_id ?? 'none'}, sts ${created.session.player?.signature_timestamp ?? '-'}`,
-    );
-    return created;
-  })().catch((e) => {
-    diag(`session failed: ${e instanceof Error ? e.message : String(e)}`);
+  client ??= createClient(true).catch((e) => {
+    diag(`session with player failed: ${e instanceof Error ? e.message : String(e)}`);
     client = null;
     throw e;
   });
   return client;
 }
 
-const browse = yt;
+let browseOnly: Promise<Innertube> | null = null;
+
+/** Browsing doesn't need the YouTube player; if fetching it fails, browse without it. */
+async function browse(): Promise<Innertube> {
+  try {
+    return await yt();
+  } catch {
+    browseOnly ??= createClient(false).catch((e) => {
+      browseOnly = null;
+      throw e;
+    });
+    return browseOnly;
+  }
+}
+
 const streams = yt;
 
 /** Start the session early so the first play doesn't wait for it. */
@@ -340,6 +357,7 @@ export async function getStream(videoId: string, quality: Quality = 'high'): Pro
         client,
         loudnessDb: info.player_config?.audio_config?.loudness_db,
         expiresAt: expire || Date.now() + 5 * 60 * 60 * 1000,
+        size: Number(f.content_length) || undefined,
       };
     } catch (e) {
       lastReason = e instanceof Error ? e.message : String(e);

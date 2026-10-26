@@ -1,6 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { diagLines, onDiag } from '../lib/diag';
 import { toast } from '../store/toast';
+import { useDownloads } from '../store/downloads';
+import { downloadsSupported } from '../platform/download';
+import { formatBytes } from '../components/DownloadBadge';
+import { Link } from 'react-router';
 import { Page } from '../components/Page';
 import { useSettings } from '../store/settings';
 import type { Quality } from '../yt/api';
@@ -42,6 +46,34 @@ function Choice<T extends string>({ value, options, onChange }: { value: T; opti
         </button>
       ))}
     </>
+  );
+}
+
+function Storage() {
+  const done = useDownloads((s) => s.done);
+  const removeAll = useDownloads((s) => s.removeAll);
+  if (!downloadsSupported) return null;
+  const items = Object.values(done);
+  const bytes = items.reduce((a, d) => a + d.size, 0);
+  return (
+    <Group title="Downloads" footer="Downloaded songs are kept inside the app and play without internet.">
+      <Link to="/library/downloaded" className="flex justify-between border-b border-sep px-4 py-2.5 text-[17px]">
+        <span>Downloaded Songs</span>
+        <span className="text-label2">
+          {items.length} · {formatBytes(bytes)}
+        </span>
+      </Link>
+      <button
+        type="button"
+        disabled={!items.length}
+        onClick={() => {
+          if (window.confirm(`Remove all ${items.length} downloaded songs from this device?`)) removeAll();
+        }}
+        className="w-full px-4 py-2.5 text-left text-[17px] text-accent disabled:opacity-40"
+      >
+        Remove All Downloads
+      </button>
+    </Group>
   );
 }
 
@@ -127,6 +159,8 @@ export default function Settings() {
           ]}
         />
       </Group>
+
+      <Storage />
 
       <Diagnostics />
 

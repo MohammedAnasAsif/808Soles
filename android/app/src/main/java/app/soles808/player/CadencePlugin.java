@@ -153,6 +153,113 @@ public class CadencePlugin extends Plugin {
         return out.toByteArray();
     }
 
+    /* ------------------------------ Downloads ---------------------------- */
+
+    private static final int CHUNK = 4 * 1024 * 1024;
+
+    private java.io.File downloadsDir() {
+        java.io.File d = new java.io.File(getContext().getFilesDir(), "downloads");
+        if (!d.exists()) d.mkdirs();
+        return d;
+    }
+
+    /** Saves a YouTube audio stream to the app's private storage, in ranged chunks. */
+    @PluginMethod
+    public void download(final PluginCall call) {
+        final String id = call.getString("id", "");
+        final String ext = call.getString("ext", "audio");
+        final String url = call.getString("url", "");
+        final JSObject headers = call.getObject("headers", new JSObject());
+        final long sizeHint = call.getLong("size", 0L);
+        if (!id.matches("[\\w-]{6,20}") || !ext.matches("[a-z0-9]{2,5}") || !url.matches("https://[^/]+\\.googlevideo\\.com/.*")) {
+            call.reject("Bad download request");
+            return;
+        }
+        net.execute(() -> {
+            java.io.File dir = downloadsDir();
+            java.io.File fin = new java.io.File(dir, id + "." + ext);
+            java.io.File part = new java.io.File(dir, id + "." + ext + ".part");
+            long received = 0;
+            long total = sizeHint;
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(part)) {
+                while (true) {
+                    long end = received + CHUNK - 1;
+                    if (total > 0) end = Math.min(end, total - 1);
+                    HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+                    c.setConnectTimeout(15000);
+                    c.setReadTimeout(30000);
+                    Iterator<String> keys = headers.keys();
+                    while (keys.hasNext()) {
+                        String k = keys.next();
+                        c.setRequestProperty(k, headers.getString(k));
+                    }
+                    c.setRequestProperty("Range", "bytes=" + received + "-" + end);
+                    int status = c.getResponseCode();
+                    if (status != 200 && status != 206) {
+                        c.disconnect();
+                        throw new java.io.IOException("HTTP " + status);
+                    }
+                    String cr = c.getHeaderField("Content-Range");
+                    if (cr != null && cr.contains("/")) {
+                        try {
+                            total = Long.parseLong(cr.substring(cr.lastIndexOf('/') + 1).trim());
+                        } catch (NumberFormatException ignored) {
+                        }
+                    }
+                    long got = 0;
+                    try (InputStream in = c.getInputStream()) {
+                        byte[] buf = new byte[65536];
+                        int n;
+                        while ((n = in.read(buf)) > 0) {
+                            out.write(buf, 0, n);
+                            got += n;
+                        }
+                    } finally {
+                        c.disconnect();
+                    }
+                    received += got;
+                    JSObject p = new JSObject();
+                    p.put("id", id);
+                    p.put("received", received);
+                    p.put("total", total);
+                    notifyListeners("downloadProgress", p);
+                    if (got == 0 || status == 200 || (total > 0 && received >= total)) break;
+                }
+            } catch (Exception e) {
+                part.delete();
+                call.reject("Download failed: " + e.getMessage(), e);
+                return;
+            }
+            if (fin.exists()) fin.delete();
+            if (!part.renameTo(fin)) {
+                part.delete();
+                call.reject("Couldn't save the file");
+                return;
+            }
+            JSObject ret = new JSObject();
+            ret.put("path", fin.getAbsolutePath());
+            ret.put("url", android.net.Uri.fromFile(fin).toString());
+            ret.put("size", received);
+            call.resolve(ret);
+        });
+    }
+
+    @PluginMethod
+    public void deleteDownload(final PluginCall call) {
+        String p = call.getString("path", "");
+        try {
+            java.io.File f = new java.io.File(p).getCanonicalFile();
+            if (!f.getParentFile().equals(downloadsDir().getCanonicalFile())) {
+                call.reject("Not a download");
+                return;
+            }
+            f.delete();
+            call.resolve();
+        } catch (Exception e) {
+            call.reject(e.getMessage());
+        }
+    }
+
     /* ------------------------------ Playback ----------------------------- */
 
     /** Runs `r` on the main thread once the playback service is up. */

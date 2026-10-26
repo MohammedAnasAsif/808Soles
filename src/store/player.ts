@@ -6,6 +6,7 @@ import { useSettings } from './settings';
 import { useLibrary } from './library';
 import { toast } from './toast';
 import { diag } from '../lib/diag';
+import { forgetLocal, localCopy } from './downloads';
 
 export type Repeat = 'off' | 'all' | 'one';
 
@@ -62,6 +63,20 @@ interface PlayerState {
 const streamCache = new Map<string, StreamInfo>();
 
 async function resolve(track: Track, fresh = false): Promise<StreamInfo> {
+  // A downloaded copy plays first, with or without internet.
+  const local = localCopy(track.id);
+  if (local && !fresh) {
+    return {
+      url: local.url,
+      headers: {},
+      mimeType: '',
+      bitrate: 0,
+      duration: track.duration,
+      client: 'local',
+      loudnessDb: local.loudnessDb,
+      expiresAt: Number.MAX_SAFE_INTEGER,
+    };
+  }
   const hit = streamCache.get(track.id);
   if (!fresh && hit && hit.expiresAt - Date.now() > 10 * 60 * 1000) return hit;
   const s = await getStream(track.id, useSettings.getState().quality);
@@ -245,7 +260,11 @@ export const usePlayer = create<PlayerState>((set, get) => {
     const t = get().current();
     if (!t) return;
     const s = streamCache.get(t.id);
-    if (s) reportRefused(t.id, s.client);
+    if (localCopy(t.id) && retries === 0) {
+      // The downloaded file is gone or unreadable: stream it instead.
+      diag(`${t.id}: downloaded file failed to play (${msg}); streaming instead`);
+      forgetLocal(t.id);
+    } else if (s) reportRefused(t.id, s.client);
     streamCache.delete(t.id);
     if (retries < 2) {
       retries++;

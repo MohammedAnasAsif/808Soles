@@ -24,6 +24,13 @@ export interface ElectronBridge {
   windowControl(action: 'minimize' | 'maximize' | 'close'): void;
   /** Recent googlevideo HTTP results from the main process. */
   mediaLog(): Promise<string[]>;
+  download(job: { id: string; url: string; headers: Record<string, string>; ext: string; size?: number }): Promise<{
+    path: string;
+    url: string;
+    size: number;
+  }>;
+  deleteDownload(path: string): Promise<void>;
+  onDownloadProgress(cb: (e: { id: string; received: number; total: number }) => void): void;
   platform: string;
 }
 
@@ -81,6 +88,16 @@ export interface CadencePlugin {
   stop(): Promise<void>;
   getState(): Promise<NativeState>;
   requestNotificationPermission(): Promise<void>;
+  download(opts: { id: string; url: string; headers: Record<string, string>; ext: string; size?: number }): Promise<{
+    path: string;
+    url: string;
+    size: number;
+  }>;
+  deleteDownload(opts: { path: string }): Promise<void>;
+  addListener(
+    event: 'downloadProgress',
+    cb: (e: { id: string; received: number; total: number }) => void,
+  ): Promise<PluginListenerHandle>;
   addListener(event: 'state', cb: (s: NativeState) => void): Promise<PluginListenerHandle>;
   addListener(event: 'advanced', cb: () => void): Promise<PluginListenerHandle>;
   addListener(event: 'ended', cb: () => void): Promise<PluginListenerHandle>;

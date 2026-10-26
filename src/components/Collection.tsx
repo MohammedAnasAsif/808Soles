@@ -7,6 +7,7 @@ import { usePlayer } from '../store/player';
 import type { ArtistRef, Card, Track } from '../yt/types';
 import { useLibrary } from '../store/library';
 import { openMenu } from './menu';
+import { DownloadAllButton } from './DownloadBadge';
 
 interface Props {
   thumb?: string;
@@ -42,6 +43,7 @@ export function CollectionHeader({ thumb, title, artists, byline, meta, descript
         <BackButton />
         <div className="ml-auto flex items-center gap-1">
           {extraActions}
+          <DownloadAllButton tracks={tracks} />
           {card && (
             <button
               type="button"

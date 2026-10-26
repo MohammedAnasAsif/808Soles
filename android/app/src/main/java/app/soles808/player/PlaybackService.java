@@ -16,6 +16,7 @@ import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
+import androidx.media3.datasource.DefaultDataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.datasource.HttpDataSource;
 import androidx.media3.exoplayer.ExoPlayer;
@@ -237,7 +238,8 @@ public class PlaybackService extends MediaSessionService {
                 .setMediaId(s.url)
                 .setMediaMetadata(meta.build())
                 .build();
-        return new ProgressiveMediaSource.Factory(http).createMediaSource(item);
+        // DefaultDataSource plays both http(s) streams and downloaded files.
+        return new ProgressiveMediaSource.Factory(new DefaultDataSource.Factory(this, http)).createMediaSource(item);
     }
 
     private void applyVolume(int deck) {

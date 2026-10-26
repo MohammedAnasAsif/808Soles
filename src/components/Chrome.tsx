@@ -1,5 +1,6 @@
 import { NavLink, useLocation, useNavigate } from 'react-router';
-import { Heart, House, LayoutGrid, Library, ListMusic, MessageSquareQuote, Mic2, Clock, Disc3, Search, Settings, Music, ListPlus } from 'lucide-react';
+import { downloadsSupported } from '../platform/download';
+import { Heart, House, ArrowDownCircle, LayoutGrid, Library, ListMusic, MessageSquareQuote, Mic2, Clock, Disc3, Search, Settings, Music, ListPlus } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { usePlayer } from '../store/player';
 import { useLibrary } from '../store/library';
@@ -140,6 +141,11 @@ export function Sidebar() {
         <SideLink to="/library/playlists" icon={<ListMusic className={ic} />}>
           Playlists
         </SideLink>
+        {downloadsSupported && (
+          <SideLink to="/library/downloaded" icon={<ArrowDownCircle className={ic} />}>
+            Downloaded
+          </SideLink>
+        )}
         <div className="flex items-center justify-between px-2.5 pb-1 pt-5 text-[11px] font-semibold text-label2">
           <span>My Playlists</span>
           <button

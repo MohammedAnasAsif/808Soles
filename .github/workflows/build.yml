@@ -124,11 +124,22 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           ls -la out
+          cat > notes.md <<EOF
+          ## Download 808Soles
+
+          | | |
+          | --- | --- |
+          | **Android** | Download **808Soles.apk** below on your phone, open it, and allow installing from your browser when asked. |
+          | **Windows** | Download **808Soles-Setup.exe** below and run it. If SmartScreen warns, click *More info → Run anyway*. |
+
+          Built from ${GITHUB_SHA:0:7}.
+          EOF
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            gh release create "$GITHUB_REF_NAME" out/* --repo "$REPO" --title "808Soles $GITHUB_REF_NAME" --generate-notes
+            gh release create "$GITHUB_REF_NAME" out/* --repo "$REPO" --title "808Soles $GITHUB_REF_NAME" --notes-file notes.md --latest
           else
             gh release delete latest-build --repo "$REPO" --cleanup-tag -y || true
-            gh release create latest-build out/* --repo "$REPO" --target "$GITHUB_SHA" --prerelease \
-              --title "Latest build" \
-              --notes "Built from $GITHUB_SHA. Android: download 808Soles.apk on your phone and open it. Windows: run 808Soles-Setup.exe."
+            # A full release marked Latest, so it shows on the repo's front page
+            # and /releases/latest/download/<file> links always work.
+            gh release create latest-build out/* --repo "$REPO" --target "$GITHUB_SHA" --latest \
+              --title "808Soles (latest)" --notes-file notes.md
           fi

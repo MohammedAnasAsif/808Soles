@@ -105,6 +105,8 @@ export interface StreamInfo {
   client: string;
   loudnessDb?: number;
   expiresAt: number;
+  /** Bytes, when YouTube says. */
+  size?: number;
 }
 
 export interface LyricLine {

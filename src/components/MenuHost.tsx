@@ -15,7 +15,11 @@ import {
   UserRound,
   BookmarkPlus,
   BookmarkMinus,
+  ArrowDownCircle,
+  CircleX,
 } from 'lucide-react';
+import { useDownloads } from '../store/downloads';
+import { downloadsSupported } from '../platform/download';
 import { useMenu } from './menu';
 import { usePlayer } from '../store/player';
 import { useLibrary } from '../store/library';
@@ -49,6 +53,7 @@ export function MenuHost() {
   const navigate = useNavigate();
   const player = usePlayer.getState;
   const lib = useLibrary();
+  const dl = useDownloads();
 
   useEffect(() => {
     if (!target) return;
@@ -76,6 +81,11 @@ export function MenuHost() {
         : { label: 'Love', icon: <Heart className={ic} />, run: () => lib.toggleLike(track) },
       { label: 'Start Station', icon: <Radio className={ic} />, run: () => player().playRadio(track) },
     );
+    if (downloadsSupported) {
+      if (dl.done[track.id]) items.push({ label: 'Remove Download', icon: <Trash2 className={ic} />, run: () => dl.remove(track.id) });
+      else if (dl.pending[track.id]) items.push({ label: 'Cancel Download', icon: <CircleX className={ic} />, run: () => dl.cancel(track.id) });
+      else items.push({ label: 'Download', icon: <ArrowDownCircle className={ic} />, run: () => dl.download([track]) });
+    }
     if (track.album?.id) items.push({ label: 'Go to Album', icon: <Disc3 className={ic} />, run: () => go(`/album/${track.album!.id}`) });
     const artist = track.artists.find((a) => a.id?.startsWith('UC'));
     if (artist) items.push({ label: 'Go to Artist', icon: <UserRound className={ic} />, run: () => go(`/artist/${artist.id}`) });
@@ -106,6 +116,7 @@ export function MenuHost() {
         { label: 'Play Last', icon: <ListEnd className={ic} />, run: withTracks((t) => player().addToQueue(t)) },
         { label: 'Add to a Playlist…', icon: <ListPlus className={ic} />, run: withTracks((t) => pick(t)) },
       );
+      if (downloadsSupported) items.push({ label: 'Download', icon: <ArrowDownCircle className={ic} />, run: withTracks((t) => dl.download(t)) });
     }
     items.push(
       lib.isSaved(card)

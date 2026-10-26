@@ -4,6 +4,7 @@ import { Artwork } from './Artwork';
 import { usePlayer } from '../store/player';
 import { openMenu, type MenuTarget } from './menu';
 import { artistNames, formatTime } from '../lib/hooks';
+import { DownloadBadge } from './DownloadBadge';
 
 export function Explicit() {
   return (
@@ -66,6 +67,9 @@ export function TrackRow({ track, onPlay, number, compact, showAlbum, menu, hide
         <div className={`flex items-center text-[15px] leading-5 ${isCurrent ? 'text-accent' : 'text-label'}`}>
           <span className="truncate">{track.title}</span>
           {track.explicit && <Explicit />}
+          <span className="ml-1.5 inline-flex">
+            <DownloadBadge id={track.id} />
+          </span>
         </div>
         {sub && <div className="truncate text-[13px] leading-[18px] text-label2">{sub}</div>}
       </div>

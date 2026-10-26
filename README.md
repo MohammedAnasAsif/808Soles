@@ -1,5 +1,13 @@
 # 808Soles
 
+<p>
+  <a href="https://github.com/MohammedAnasAsif/808Soles/releases/latest/download/808Soles.apk"><img alt="Download for Android" src="https://img.shields.io/badge/Download-Android%20APK-3DDC84?style=for-the-badge&logo=android&logoColor=white" height="44"></a>
+  &nbsp;
+  <a href="https://github.com/MohammedAnasAsif/808Soles/releases/latest/download/808Soles-Setup.exe"><img alt="Download for Windows" src="https://img.shields.io/badge/Download-Windows%20EXE-0078D6?style=for-the-badge&logo=windows&logoColor=white" height="44"></a>
+</p>
+
+**[All downloads →](https://github.com/MohammedAnasAsif/808Soles/releases/latest)**
+
 An open-source YouTube Music player for **Android** and **Windows**, with an Apple Music–style interface.
 
 - Home feed, New releases, moods & genres, search with suggestions
@@ -16,7 +24,7 @@ No account and no server: the app talks to YouTube Music directly. It is not aff
 
 ## Download
 
-Every push to `main` builds both apps on GitHub Actions and publishes them on the **Latest build** release (Releases → Latest build):
+Use the buttons at the top, or open **[Releases](https://github.com/MohammedAnasAsif/808Soles/releases/latest)**. Every push to `main` rebuilds both apps and replaces the files there.
 
 - **Android:** open `808Soles.apk` on your phone and allow installing from your browser when asked.
 - **Windows:** run `808Soles-Setup.exe`. It isn't code-signed, so SmartScreen may warn: *More info → Run anyway*.

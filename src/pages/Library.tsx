@@ -1,4 +1,7 @@
-import { ChevronRight, Clock, Disc3, Heart, ListMusic, Mic2, Plus } from 'lucide-react';
+import { ArrowDownCircle, ChevronRight, Clock, Disc3, Heart, ListMusic, Mic2, Plus, Trash2 } from 'lucide-react';
+import { useDownloads } from '../store/downloads';
+import { formatBytes } from '../components/DownloadBadge';
+import { downloadsSupported } from '../platform/download';
 import { Link, useNavigate, useParams } from 'react-router';
 import type { ReactNode } from 'react';
 import { Empty, Page } from '../components/Page';
@@ -45,6 +48,7 @@ export default function Library() {
         <Row to="/library/artists" icon={<Mic2 className={ic} />} label="Artists" />
         <Row to="/library/albums" icon={<Disc3 className={ic} />} label="Albums" />
         <Row to="/library/songs" icon={<Heart className={ic} />} label="Loved Songs" />
+        {downloadsSupported && <Row to="/library/downloaded" icon={<ArrowDownCircle className={ic} />} label="Downloaded" />}
         <Row to="/library/recent" icon={<Clock className={ic} />} label="Recently Played" />
       </div>
       {added.length > 0 && (
@@ -69,6 +73,8 @@ export function LibrarySection() {
   const lib = useLibrary();
   const playTracks = usePlayer((s) => s.playTracks);
   const navigate = useNavigate();
+
+  if (section === 'downloaded') return <DownloadedPage />;
 
   if (section === 'songs' || section === 'recent') {
     const tracks = section === 'songs' ? lib.liked : lib.recent;
@@ -137,5 +143,58 @@ export function LibrarySection() {
     <Page title={m.title} back>
       {m.cards.length ? <Grid cards={m.cards} /> : <Empty icon={<Disc3 className="h-12 w-12" />} title={`No ${m.title.toLowerCase()} yet`} text={m.empty} />}
     </Page>
+  );
+}
+
+function DownloadedPage() {
+  const done = useDownloads((s) => s.done);
+  const pending = useDownloads((s) => s.pending);
+  const removeAll = useDownloads((s) => s.removeAll);
+  const playTracks = usePlayer((s) => s.playTracks);
+  const items = Object.values(done).sort((a, b) => b.at - a.at);
+  const tracks = items.map((d) => d.track);
+  const waiting = Object.values(pending);
+  const bytes = items.reduce((a, d) => a + d.size, 0);
+  if (!items.length && !waiting.length) {
+    return (
+      <Page title="Downloaded" back>
+        <Empty
+          icon={<ArrowDownCircle className="h-12 w-12" />}
+          title="No downloads yet"
+          text="Tap ••• on a song and choose Download, or tap the ↓ button on an album or playlist. Downloaded songs play without internet."
+        />
+      </Page>
+    );
+  }
+  return (
+    <div className="pb-8">
+      <CollectionHeader thumb={tracks[0]?.thumb} title="Downloaded" byline="On this device" meta={`${items.length} songs · ${formatBytes(bytes)}`} tracks={tracks} label="Downloaded" />
+      {waiting.length > 0 && (
+        <div className="px-gutter mt-6">
+          <h2 className="section-title mb-1">Downloading</h2>
+          {waiting.map((p) => (
+            <TrackRow key={p.track.id} track={p.track} onPlay={() => playTracks([p.track], 0)} />
+          ))}
+        </div>
+      )}
+      <div className="px-gutter mt-6">
+        {tracks.map((t, i) => (
+          <TrackRow key={t.id} track={t} showAlbum onPlay={() => playTracks(tracks, i, { label: 'Downloaded' })} />
+        ))}
+      </div>
+      {items.length > 0 && (
+        <div className="px-gutter mt-6">
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm(`Remove all ${items.length} downloaded songs from this device?`)) removeAll();
+            }}
+            className="flex items-center gap-2 text-[15px] text-accent"
+          >
+            <Trash2 className="h-4 w-4" /> Remove All Downloads
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
