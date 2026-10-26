@@ -306,6 +306,17 @@ public class CadencePlugin extends Plugin {
         s.album = m.optString("album", "");
         String art = m.optString("artworkUrl", "");
         s.artworkUrl = art.isEmpty() ? null : art;
+        JSObject ix = call.getObject("index", null);
+        if (ix != null) {
+            s.mimeType = ix.optString("mimeType", null);
+            s.codecs = ix.optString("codecs", "");
+            s.bitrate = ix.optLong("bitrate", 128000);
+            s.initStart = ix.optLong("initStart", -1);
+            s.initEnd = ix.optLong("initEnd", -1);
+            s.indexStart = ix.optLong("indexStart", -1);
+            s.indexEnd = ix.optLong("indexEnd", -1);
+            s.durationMs = ix.optLong("durationMs", 0);
+        }
         return s;
     }
 

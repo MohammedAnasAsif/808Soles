@@ -107,6 +107,24 @@ export interface StreamInfo {
   expiresAt: number;
   /** Bytes, when YouTube says. */
   size?: number;
+  /** Where the file's index is, so Android's player can seek (see SeekIndex). */
+  index?: SeekIndex;
+}
+
+/**
+ * Byte ranges of a YouTube audio file's header and seek index. Android's
+ * player can't seek in a WebM file played straight through; given these it
+ * plays it as DASH, which can.
+ */
+export interface SeekIndex {
+  mimeType: string;
+  codecs: string;
+  bitrate: number;
+  initStart: number;
+  initEnd: number;
+  indexStart: number;
+  indexEnd: number;
+  durationMs: number;
 }
 
 export interface LyricLine {

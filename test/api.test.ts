@@ -8,6 +8,7 @@ import { fixtureFor } from '../scripts/dev-relay';
 import { configureClient, getAlbum, getArtist, getExplore, getHome, getPlaylist, getRadio, search, suggestions } from '../src/yt/api';
 import { getLyrics, parseLrc, cleanTitle } from '../src/yt/lyrics';
 import { upscale } from '../src/yt/normalize';
+import { seekIndexOf } from '../src/yt/api';
 
 const dir = process.env.FIXTURES_DIR ?? '';
 const have = !!dir && existsSync(`${dir}/innertube/browse-home.json`);
@@ -32,6 +33,26 @@ describe('helpers', () => {
   it('cleans titles', () => {
     expect(cleanTitle('Creep (Official Music Video)')).toBe('Creep');
     expect(cleanTitle('Let Down [Remastered 2017]')).toBe('Let Down');
+  });
+  it('reads the seek index of a format', () => {
+    const f = {
+      mime_type: 'audio/webm; codecs="opus"',
+      bitrate: 135000,
+      approx_duration_ms: '299981',
+      init_range: { start: 0, end: 258 },
+      index_range: { start: 259, end: 783 },
+    };
+    expect(seekIndexOf(f, 300)).toEqual({
+      mimeType: 'audio/webm',
+      codecs: 'opus',
+      bitrate: 135000,
+      initStart: 0,
+      initEnd: 258,
+      indexStart: 259,
+      indexEnd: 783,
+      durationMs: 299981,
+    });
+    expect(seekIndexOf({ ...f, index_range: undefined }, 300)).toBeUndefined();
   });
   it('upscales artwork', () => {
     expect(upscale('https://lh3.googleusercontent.com/abc=w60-h60-l90-rj')).toBe(

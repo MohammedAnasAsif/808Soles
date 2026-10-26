@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Track } from '../yt/types';
+import type { SeekIndex, Track } from '../yt/types';
 import { getStream, reportRefused } from '../yt/api';
 import { deleteFile, downloadFile, downloadsSupported } from '../platform/download';
 import { diag } from '../lib/diag';
@@ -13,6 +13,8 @@ export interface Downloaded {
   size: number;
   /** YouTube's loudness figure, kept for Sound Check offline. */
   loudnessDb?: number;
+  /** For seeking on Android. */
+  index?: SeekIndex;
   at: number;
 }
 
@@ -94,7 +96,7 @@ export const useDownloads = create<DownloadsStore>()(
                 pending,
                 done: {
                   ...s.done,
-                  [t.id]: { track: t, path: file.path, url: file.url, size: file.size, loudnessDb: stream!.loudnessDb, at: Date.now() },
+                  [t.id]: { track: t, path: file.path, url: file.url, size: file.size, loudnessDb: stream!.loudnessDb, index: stream!.index, at: Date.now() },
                 },
               };
             });

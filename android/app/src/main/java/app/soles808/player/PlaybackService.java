@@ -20,6 +20,9 @@ import androidx.media3.datasource.DefaultDataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.datasource.HttpDataSource;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.dash.DashMediaSource;
+import androidx.media3.exoplayer.dash.manifest.DashManifest;
+import androidx.media3.exoplayer.dash.manifest.DashManifestParser;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.media3.session.MediaSession;
@@ -55,6 +58,38 @@ public class PlaybackService extends MediaSessionService {
         public String album = "";
         public String artworkUrl;
         public float gain = 1f;
+
+        /** Seek index byte ranges (see SeekIndex in the web code); null if unknown. */
+        public String mimeType;
+        public String codecs = "";
+        public long bitrate = 128000;
+        public long initStart = -1, initEnd = -1, indexStart = -1, indexEnd = -1;
+        public long durationMs = 0;
+
+        boolean hasIndex() {
+            return mimeType != null && initEnd > initStart && indexEnd > indexStart && indexStart >= 0 && durationMs > 0;
+        }
+    }
+
+    private static String xml(String s) {
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
+    }
+
+    /**
+     * A one-file DASH manifest. ExoPlayer can't seek in a WebM file played
+     * progressively (YouTube's index isn't where it looks), but with the index
+     * ranges declared it can, for streams and downloaded files alike.
+     */
+    private static String manifestFor(Source s) {
+        double secs = s.durationMs / 1000.0;
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                + "<MPD xmlns=\"urn:mpeg:dash:schema:mpd:2011\" type=\"static\" profiles=\"urn:mpeg:dash:profile:isoff-on-demand:2011\""
+                + " minBufferTime=\"PT1.5S\" mediaPresentationDuration=\"PT" + String.format(java.util.Locale.US, "%.3f", secs) + "S\">"
+                + "<Period start=\"PT0S\"><AdaptationSet contentType=\"audio\" mimeType=\"" + xml(s.mimeType) + "\" subsegmentAlignment=\"true\">"
+                + "<Representation id=\"0\" bandwidth=\"" + s.bitrate + "\"" + (s.codecs.isEmpty() ? "" : " codecs=\"" + xml(s.codecs) + "\"") + ">"
+                + "<BaseURL>" + xml(s.url) + "</BaseURL>"
+                + "<SegmentBase indexRange=\"" + s.indexStart + "-" + s.indexEnd + "\"><Initialization range=\"" + s.initStart + "-" + s.initEnd + "\"/></SegmentBase>"
+                + "</Representation></AdaptationSet></Period></MPD>";
     }
 
     @Nullable public static PlaybackService instance;
@@ -238,8 +273,19 @@ public class PlaybackService extends MediaSessionService {
                 .setMediaId(s.url)
                 .setMediaMetadata(meta.build())
                 .build();
-        // DefaultDataSource plays both http(s) streams and downloaded files.
-        return new ProgressiveMediaSource.Factory(new DefaultDataSource.Factory(this, http)).createMediaSource(item);
+        // DefaultDataSource reads both http(s) streams and downloaded files.
+        DefaultDataSource.Factory data = new DefaultDataSource.Factory(this, http);
+        if (s.hasIndex()) {
+            try {
+                DashManifest manifest = new DashManifestParser().parse(
+                        Uri.parse(s.url),
+                        new java.io.ByteArrayInputStream(manifestFor(s).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+                return new DashMediaSource.Factory(data).createMediaSource(manifest, item);
+            } catch (Exception e) {
+                android.util.Log.w("808Soles", "DASH manifest failed, playing progressively", e);
+            }
+        }
+        return new ProgressiveMediaSource.Factory(data).createMediaSource(item);
     }
 
     private void applyVolume(int deck) {

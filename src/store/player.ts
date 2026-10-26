@@ -6,7 +6,7 @@ import { useSettings } from './settings';
 import { useLibrary } from './library';
 import { toast } from './toast';
 import { diag } from '../lib/diag';
-import { forgetLocal, localCopy } from './downloads';
+import { forgetLocal, localCopy, useDownloads } from './downloads';
 
 export type Repeat = 'off' | 'all' | 'one';
 
@@ -65,6 +65,17 @@ const streamCache = new Map<string, StreamInfo>();
 async function resolve(track: Track, fresh = false): Promise<StreamInfo> {
   // A downloaded copy plays first, with or without internet.
   const local = localCopy(track.id);
+  if (local && !fresh && !local.index) {
+    // Downloaded before seek indexes were saved: look it up once (when online)
+    // so this file can be seeked on Android from next time.
+    getStream(track.id, 'high')
+      .then((s) => {
+        // Only if it's the same file (same size); another format's ranges would be wrong.
+        if (!s.index || !s.size || s.size !== local.size) return;
+        useDownloads.setState((st) => (st.done[track.id] ? { done: { ...st.done, [track.id]: { ...st.done[track.id], index: s.index } } } : st));
+      })
+      .catch(() => {});
+  }
   if (local && !fresh) {
     return {
       url: local.url,
@@ -75,6 +86,7 @@ async function resolve(track: Track, fresh = false): Promise<StreamInfo> {
       client: 'local',
       loudnessDb: local.loudnessDb,
       expiresAt: Number.MAX_SAFE_INTEGER,
+      index: local.index,
     };
   }
   const hit = streamCache.get(track.id);
@@ -89,6 +101,7 @@ function toSource(track: Track, s: StreamInfo): Source {
   return {
     url: s.url,
     headers: s.headers,
+    index: s.index,
     gain: useSettings.getState().normalize ? normalizationGain(s.loudnessDb) : 1,
     meta: {
       title: track.title,

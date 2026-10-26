@@ -17,7 +17,7 @@ import {
   trackFromPanel,
   trackFromListItem,
 } from './normalize';
-import type { AlbumPage, ArtistPage, PlaylistPage, SearchResults, Shelf, StreamInfo, Track } from './types';
+import type { AlbumPage, ArtistPage, PlaylistPage, SearchResults, SeekIndex, Shelf, StreamInfo, Track } from './types';
 
 /*
  * Our requests are made natively (Electron's main process, Android's HTTP
@@ -314,6 +314,25 @@ function clientHeaders(client: string): Record<string, string> {
   return ua ? { 'User-Agent': ua } : {};
 }
 
+export function seekIndexOf(f: any, durationSec: number | undefined): SeekIndex | undefined {
+  const init = f.init_range;
+  const index = f.index_range;
+  const durationMs = Number(f.approx_duration_ms) || (durationSec ? durationSec * 1000 : 0);
+  if (!init || !index || !durationMs) return undefined;
+  const [mimeType, rest = ''] = String(f.mime_type ?? '').split(';');
+  const codecs = /codecs="([^"]+)"/.exec(rest)?.[1] ?? '';
+  return {
+    mimeType: mimeType.trim(),
+    codecs,
+    bitrate: Number(f.bitrate) || 128000,
+    initStart: Number(init.start),
+    initEnd: Number(init.end),
+    indexStart: Number(index.start),
+    indexEnd: Number(index.end),
+    durationMs,
+  };
+}
+
 export async function getStream(videoId: string, quality: Quality = 'high'): Promise<StreamInfo> {
   const yt = await streams();
   let lastReason: string | undefined;
@@ -358,6 +377,7 @@ export async function getStream(videoId: string, quality: Quality = 'high'): Pro
         loudnessDb: info.player_config?.audio_config?.loudness_db,
         expiresAt: expire || Date.now() + 5 * 60 * 60 * 1000,
         size: Number(f.content_length) || undefined,
+        index: seekIndexOf(f, Number(info.basic_info?.duration) || undefined),
       };
     } catch (e) {
       lastReason = e instanceof Error ? e.message : String(e);

@@ -64,6 +64,8 @@ export interface NativeSource {
   meta: NativeTrackMeta;
   /** Loudness normalisation, 0..1. */
   gain: number;
+  /** Lets Android seek in WebM/MP4 (played as DASH). */
+  index?: import('../yt/types').SeekIndex;
 }
 
 /**
