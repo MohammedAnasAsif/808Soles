@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { HashRouter, Route, Routes, useLocation } from 'react-router';
+import { HashRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
+import { NativeCadence, platform } from './platform';
+import { useMenu } from './components/menu';
 import { useWide } from './lib/hooks';
 import { MiniPlayer, PlayerBar, Sidebar, TabBar, Toasts } from './components/Chrome';
 import { NowPlaying } from './components/NowPlaying';
@@ -74,8 +76,43 @@ function useShortcuts() {
   }, []);
 }
 
+const TAB_ROOTS = ['/', '/browse', '/library', '/search'];
+
+/**
+ * Android's Back: close what's on top first (menu, lyrics/queue, Now
+ * Playing), then go back through pages, then to Home, and on Home leave the
+ * app without stopping the music.
+ */
+function useAndroidBack() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const loc = useRef(location);
+  loc.current = location;
+  useEffect(() => {
+    if (platform !== 'android') return;
+    const handle = NativeCadence.addListener('backButton', () => {
+      const menu = useMenu.getState();
+      if (menu.target) return menu.close();
+      if (menu.picker) return menu.pick(null);
+      const p = usePlayer.getState();
+      if (p.nowPlayingOpen) {
+        if (p.panel !== 'none') return p.setPanel(p.panel);
+        return p.openNowPlaying(false);
+      }
+      const { pathname, key } = loc.current;
+      if (key !== 'default' && !TAB_ROOTS.includes(pathname)) return navigate(-1);
+      if (pathname !== '/') return navigate('/', { replace: true });
+      void NativeCadence.minimize();
+    });
+    return () => {
+      void handle.then((h) => h.remove());
+    };
+  }, [navigate]);
+}
+
 function Shell() {
   const wide = useWide();
+  useAndroidBack();
   const hasTrack = usePlayer((s) => s.index >= 0);
   useTheme();
   useShortcuts();

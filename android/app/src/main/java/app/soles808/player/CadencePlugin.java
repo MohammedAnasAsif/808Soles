@@ -44,8 +44,21 @@ public class CadencePlugin extends Plugin {
     private ListenableFuture<MediaController> controller;
     private final List<Runnable> pending = new ArrayList<>();
 
+    private androidx.activity.OnBackPressedCallback backCallback;
+
     @Override
     public void load() {
+        // Hand the system Back gesture/button to the web app, which closes
+        // sheets and goes back through its pages before leaving the app.
+        getActivity().runOnUiThread(() -> {
+            backCallback = new androidx.activity.OnBackPressedCallback(true) {
+                @Override
+                public void handleOnBackPressed() {
+                    notifyListeners("backButton", new JSObject());
+                }
+            };
+            getActivity().getOnBackPressedDispatcher().addCallback(getActivity(), backCallback);
+        });
         PlaybackService.events = new PlaybackService.Events() {
             @Override
             public void onState(boolean playing, boolean buffering, long positionMs, long durationMs) {
@@ -106,6 +119,15 @@ public class CadencePlugin extends Plugin {
             }
         }
         return def;
+    }
+
+    /** Back on the home screen: leave the app like Home does, music keeps playing. */
+    @PluginMethod
+    public void minimize(final PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            getActivity().moveTaskToBack(true);
+            call.resolve();
+        });
     }
 
     /* ------------------------------- HTTP -------------------------------- */

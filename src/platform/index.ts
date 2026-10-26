@@ -96,6 +96,9 @@ export interface CadencePlugin {
     size: number;
   }>;
   deleteDownload(opts: { path: string }): Promise<void>;
+  /** Send the app to the background (music keeps playing). */
+  minimize(): Promise<void>;
+  addListener(event: 'backButton', cb: () => void): Promise<PluginListenerHandle>;
   addListener(
     event: 'downloadProgress',
     cb: (e: { id: string; received: number; total: number }) => void,
