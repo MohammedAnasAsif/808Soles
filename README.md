@@ -1,14 +1,20 @@
-# 808Soles
+<p align="center">
+  <img src="docs/logo.png" alt="808Soles logo" width="140" height="140">
+</p>
 
-<p>
+<h1 align="center">808Soles</h1>
+
+<p align="center">An open-source YouTube Music player for <b>Android</b> and <b>Windows</b>, with an Apple Music–style interface.</p>
+
+<p align="center">
   <a href="https://github.com/MohammedAnasAsif/808Soles/releases/latest/download/808Soles.apk"><img alt="Download for Android" src="https://img.shields.io/badge/Download-Android%20APK-3DDC84?style=for-the-badge&logo=android&logoColor=white" height="44"></a>
   &nbsp;
   <a href="https://github.com/MohammedAnasAsif/808Soles/releases/latest/download/808Soles-Setup.exe"><img alt="Download for Windows" src="https://img.shields.io/badge/Download-Windows%20EXE-0078D6?style=for-the-badge&logo=windows&logoColor=white" height="44"></a>
 </p>
 
-**[All downloads →](https://github.com/MohammedAnasAsif/808Soles/releases/latest)**
+<p align="center"><a href="https://github.com/MohammedAnasAsif/808Soles/releases/latest"><b>All downloads →</b></a></p>
 
-An open-source YouTube Music player for **Android** and **Windows**, with an Apple Music–style interface.
+## Features
 
 - Home feed, New releases, moods & genres, search with suggestions
 - Album, artist and playlist pages
