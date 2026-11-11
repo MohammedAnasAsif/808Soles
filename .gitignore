@@ -9,3 +9,4 @@ release/
 *.keystore
 keystore.base64
 .env*
+*.tsbuildinfo
