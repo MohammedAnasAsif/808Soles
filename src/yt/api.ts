@@ -6,7 +6,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Innertube, Platform, YTNodes, Constants, UniversalCache } from 'youtubei.js';
 import type { Types } from 'youtubei.js';
-import { platformFetch } from '../platform';
+import { platform, platformFetch } from '../platform';
 import { diag } from '../lib/diag';
 import {
   albumFrom,
@@ -335,8 +335,14 @@ export class StreamError extends Error {
 
 export type Quality = 'high' | 'normal' | 'low';
 
-function pickFormat(formats: any[], quality: Quality): any | undefined {
-  const audio = formats.filter((f) => f.has_audio && !f.has_video && (f.url || f.signature_cipher || f.cipher));
+function pickFormat(formats: any[], quality: Quality, aacOnly = false): any | undefined {
+  const audio = formats.filter(
+    (f) =>
+      f.has_audio &&
+      !f.has_video &&
+      (f.url || f.signature_cipher || f.cipher) &&
+      (!aacOnly || String(f.mime_type).startsWith('audio/mp4')),
+  );
   if (!audio.length) return undefined;
   // Opus (itag 251/250/249) sounds better per bit; AAC (140/139) is the fallback.
   const score = (f: any) => {
@@ -394,7 +400,8 @@ export async function getStream(videoId: string, quality: Quality = 'high'): Pro
         continue;
       }
       const formats: any[] = info.streaming_data?.adaptive_formats ?? [];
-      const f = pickFormat(formats, quality);
+      // iOS's player (AVFoundation) plays AAC in MP4, not Opus in WebM.
+      const f = pickFormat(formats, quality, platform === 'ios');
       if (!f) {
         lastReason = 'No audio formats';
         diag(`${videoId} ${client}: OK but no direct audio URLs (sabr=${!!info.streaming_data?.server_abr_streaming_url})`);

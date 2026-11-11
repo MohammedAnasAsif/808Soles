@@ -15,7 +15,9 @@
     "test": "vitest run",
     "electron": "electron .",
     "dist:win": "npm run build && electron-builder --win nsis --publish never",
-    "android:sync": "npm run build && cap sync android"
+    "android:sync": "npm run build && cap sync android",
+    "ios:web": "node scripts/ios-web.mjs",
+    "ios:sync": "npm run build && node scripts/ios-web.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^8.5.3"

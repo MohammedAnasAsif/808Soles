@@ -1,7 +1,8 @@
 import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor/core';
+import { createIosPlugin, iosHandler } from './ios';
 
 /** Where the app is running. */
-export type PlatformKind = 'electron' | 'android' | 'web';
+export type PlatformKind = 'electron' | 'android' | 'ios' | 'web';
 
 export interface WireRequest {
   url: string;
@@ -81,6 +82,11 @@ export interface CadencePlugin {
   }): Promise<{ status: number; headers: Record<string, string>; bodyBase64: string }>;
   load(opts: NativeSource & { startMs: number; autoplay: boolean }): Promise<void>;
   prepareNext(opts: NativeSource): Promise<void>;
+  /**
+   * iOS only: the tracks after the prepared one. iOS pauses the web view in
+   * the background, so the native player continues through these by itself.
+   */
+  setUpcoming(opts: { sources: NativeSource[] }): Promise<void>;
   clearNext(): Promise<void>;
   play(): Promise<void>;
   pause(): Promise<void>;
@@ -110,13 +116,18 @@ export interface CadencePlugin {
   addListener(event: 'remote', cb: (e: { action: 'next' | 'previous' }) => void): Promise<PluginListenerHandle>;
 }
 
-export const NativeCadence = registerPlugin<CadencePlugin>('Cadence');
-
 export const platform: PlatformKind = (() => {
   if (typeof window !== 'undefined' && window.cadence) return 'electron';
+  if (iosHandler()) return 'ios';
   if (Capacitor.isNativePlatform()) return 'android';
   return 'web';
 })();
+
+/** Android (Capacitor plugin) and iOS (Swift bridge) share one native API. */
+export const isNativeApp = platform === 'android' || platform === 'ios';
+
+export const NativeCadence: CadencePlugin =
+  platform === 'ios' ? createIosPlugin(iosHandler()!) : registerPlugin<CadencePlugin>('Cadence');
 
 export const isDesktop = platform === 'electron';
 
@@ -183,7 +194,7 @@ export function base64ToBytes(b64: string): Uint8Array {
 
 /**
  * A fetch that is not subject to CORS and can set any header.
- * Electron: the main process's network stack. Android: the native plugin.
+ * Electron: the main process's network stack. Android and iOS: the native bridge.
  * Browser dev mode: the Vite dev server relays `/__relay/<url>`.
  */
 export const platformFetch: typeof fetch = async (input, init) => {
@@ -192,7 +203,7 @@ export const platformFetch: typeof fetch = async (input, init) => {
     const res = await window.cadence!.netFetch(req);
     return fromWire(res, req.url);
   }
-  if (platform === 'android') {
+  if (isNativeApp) {
     const res = await NativeCadence.http({
       url: req.url,
       method: req.method,

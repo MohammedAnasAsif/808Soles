@@ -10,3 +10,10 @@ release/
 keystore.base64
 .env*
 *.tsbuildinfo
+
+# iOS build outputs (the web app is copied in by `npm run ios:web`)
+ios/Sources/Soles808/Web/
+ios/build/
+ios/.build/
+ios/.swiftpm/
+ios/xtool/

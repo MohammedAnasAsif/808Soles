@@ -1,4 +1,4 @@
-import { platform } from '../platform';
+import { isNativeApp } from '../platform';
 import type { NativeSource } from '../platform';
 import { WebEngine } from './web-engine';
 import { NativeEngine } from './native-engine';
@@ -27,7 +27,7 @@ export interface EngineEvents {
 
 /**
  * Two decks, so the next track can be preloaded and crossfaded in.
- * Web (Electron) runs in JS; Android runs natively.
+ * Web (Electron) runs in JS; Android and iOS run natively.
  */
 export interface Engine {
   load(src: Source, startAt: number, autoplay: boolean): Promise<void>;
@@ -39,10 +39,12 @@ export interface Engine {
   setVolume(v: number): void;
   stop(): void;
   setEvents(e: EngineEvents): void;
+  /** iOS: the tracks after the prepared one, for playing on while the app is in the background. */
+  setUpcoming?(srcs: Source[]): void;
 }
 
 export function createEngine(): Engine {
-  return platform === 'android' ? new NativeEngine() : new WebEngine();
+  return isNativeApp ? new NativeEngine() : new WebEngine();
 }
 
 export { fadeCurve, normalizationGain } from './curves';

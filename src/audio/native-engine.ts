@@ -1,4 +1,4 @@
-import { NativeCadence } from '../platform';
+import { NativeCadence, platform } from '../platform';
 import { diag } from '../lib/diag';
 import type { Engine, EngineEvents, Source } from './engine';
 
@@ -11,12 +11,17 @@ const noop: EngineEvents = {
 };
 
 /**
- * Android: playback runs in a native foreground service (ExoPlayer + media
- * session). The service performs crossfades and track changes itself, so they
- * still happen when the app is in the background.
+ * Native playback. Android: a foreground service (ExoPlayer + media session).
+ * iOS: two AVPlayers with Now Playing and lock-screen controls. Both perform
+ * crossfades and track changes themselves, so they still happen when the app
+ * is in the background.
  */
 export class NativeEngine implements Engine {
   private events: EngineEvents = noop;
+
+  /** iOS keeps playing these after the prepared track while the web view is paused. */
+  setUpcoming?: (srcs: Source[]) => void =
+    platform === 'ios' ? (srcs) => void NativeCadence.setUpcoming({ sources: srcs }).catch(() => {}) : undefined;
 
   constructor() {
     void NativeCadence.addListener('state', (s) =>

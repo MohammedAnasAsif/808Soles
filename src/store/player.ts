@@ -131,6 +131,8 @@ let generation = 0;
 let preparedIndex = -1;
 let retries = 0;
 let fetchingMore = false;
+/** iOS: how many songs past the prepared one the native player gets. */
+const UPCOMING = 8;
 
 export const usePlayer = create<PlayerState>((set, get) => {
   function eng(): Engine {
@@ -216,10 +218,42 @@ export const usePlayer = create<PlayerState>((set, get) => {
         if (gen !== generation || get().queue[n]?.id !== t.id) return;
         eng().prepareNext(toSource(t, s));
         preparedIndex = n;
+        void refreshUpcoming(gen, n);
       } catch {
         preparedIndex = -1; // it will be retried (and skipped if needed) at the switch
       }
     }, 3000);
+  }
+
+  /**
+   * iOS pauses the web view in the background, so this code can't prepare
+   * each next song there. While the app is open, resolve a few songs past the
+   * prepared one and hand them to the native player, which plays on through
+   * them by itself. Songs are resolved one at a time, a little apart, and each
+   * only once (they are cached), so this adds no burst of requests.
+   */
+  async function refreshUpcoming(gen: number, after: number) {
+    const e = eng();
+    if (!e.setUpcoming) return;
+    const sources: Source[] = [];
+    let i = after;
+    for (let k = 0; k < UPCOMING; k++) {
+      if (get().repeat === 'one') break;
+      i = nextIndex(i);
+      if (i < 0 || i === after) break;
+      const t = get().queue[i];
+      const cached = streamCache.has(t.id) || !!localCopy(t.id);
+      try {
+        const s = await resolve(t);
+        if (gen !== generation) return;
+        sources.push(toSource(t, s));
+      } catch {
+        break; // the web app skips it when it's back in front
+      }
+      e.setUpcoming([...sources]);
+      if (!cached) await new Promise((r) => setTimeout(r, 1500));
+      if (gen !== generation) return;
+    }
   }
 
   /** When the queue is nearly done and it's a radio, add more like the last song. */
@@ -238,6 +272,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
       if (add.length) {
         set((s) => ({ queue: [...s.queue, ...add], source: s.source ? { ...s.source, radio: true } : { label: 'Autoplay', radio: true } }));
         if (preparedIndex < 0) schedulePrepare(generation);
+        else void refreshUpcoming(generation, preparedIndex);
       }
     } catch {
       /* offline or refused; try again next track */

@@ -129,8 +129,41 @@ jobs:
           name: soles808-windows
           path: out/808Soles-Setup.exe
 
+  ios:
+    needs: check
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - run: npm run build
+      - run: npm run ios:web
+      # The same Swift package xtool builds (`xtool dev`), checked with Xcode.
+      - name: Check the Swift package
+        working-directory: ios
+        run: |
+          ../scripts/ci-run.sh "iOS Swift package" xcodebuild build -scheme Soles808 \
+            -destination 'generic/platform=iOS' -derivedDataPath build/pkg \
+            CODE_SIGNING_ALLOWED=NO -quiet
+      - name: Build IPA
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('0.1.{0}', github.run_number) }}
+        run: scripts/ci-run.sh "iOS build" ios/build-ipa.sh out/808Soles.ipa
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: soles808-ios
+          path: out/808Soles.ipa
+
   release:
-    needs: [android, windows]
+    needs: [android, windows, ios]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -144,7 +177,7 @@ jobs:
       - name: Checksums
         run: |
           cd out
-          sha256sum 808Soles.apk 808Soles-Setup.exe > SHA256SUMS.txt
+          sha256sum 808Soles.apk 808Soles-Setup.exe 808Soles.ipa > SHA256SUMS.txt
           cat SHA256SUMS.txt
       # Signed proof that these files were built by this workflow from this
       # repository (verify with: gh attestation verify <file> -R <owner>/<repo>).
@@ -153,6 +186,7 @@ jobs:
           subject-path: |
             out/808Soles.apk
             out/808Soles-Setup.exe
+            out/808Soles.ipa
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
@@ -166,6 +200,7 @@ jobs:
           | --- | --- |
           | **Android** | Download **808Soles.apk** below on your phone, open it, and allow installing from your browser when asked. |
           | **Windows** | Download **808Soles-Setup.exe** below and run it. If SmartScreen warns, click *More info → Run anyway*. |
+          | **iPhone / iPad** | Download **808Soles.ipa** below on your computer and install it over USB with xtool (\`xtool install 808Soles.ipa\`), Sideloadly or AltStore. [Step-by-step guide](https://github.com/$REPO#iphone--ipad) |
 
           Built from ${GITHUB_SHA:0:7}.
 

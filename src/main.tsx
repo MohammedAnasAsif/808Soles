@@ -9,7 +9,7 @@ import { platform } from './platform';
 import { applyRuntimeCsp } from './lib/csp';
 import { useDownloads } from './store/downloads';
 
-// Android: lock the page down before the app renders (Windows gets this as a header).
+// Android: lock the page down before the app renders (Windows and iOS get it as a header).
 if (platform === 'android' && !import.meta.env.DEV) applyRuntimeCsp();
 
 warmUp();

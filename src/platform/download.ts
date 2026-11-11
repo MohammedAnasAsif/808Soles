@@ -1,4 +1,4 @@
-import { NativeCadence, platform } from './index';
+import { NativeCadence, isNativeApp, platform } from './index';
 
 export interface DownloadJob {
   id: string;
@@ -28,14 +28,14 @@ function listen() {
   listening = true;
   const on = (e: { id: string; received: number; total: number }) => progressCallbacks.get(e.id)?.(e.received, e.total);
   if (platform === 'electron') window.cadence!.onDownloadProgress(on);
-  else if (platform === 'android') void NativeCadence.addListener('downloadProgress', on);
+  else if (isNativeApp) void NativeCadence.addListener('downloadProgress', on);
 }
 
-export const downloadsSupported = platform === 'electron' || platform === 'android';
+export const downloadsSupported = platform === 'electron' || isNativeApp;
 
 /** Saves a stream to the app's private downloads folder, in chunks, natively. */
 export async function downloadFile(job: DownloadJob, onProgress: Progress): Promise<DownloadedFile> {
-  if (!downloadsSupported) throw new Error('Downloads work in the Windows and Android apps.');
+  if (!downloadsSupported) throw new Error('Downloads work in the Windows, Android and iPhone apps.');
   listen();
   progressCallbacks.set(job.id, onProgress);
   try {
@@ -48,5 +48,5 @@ export async function downloadFile(job: DownloadJob, onProgress: Progress): Prom
 
 export async function deleteFile(path: string): Promise<void> {
   if (platform === 'electron') await window.cadence!.deleteDownload(path);
-  else if (platform === 'android') await NativeCadence.deleteDownload({ path });
+  else if (isNativeApp) await NativeCadence.deleteDownload({ path });
 }
