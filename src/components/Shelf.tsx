@@ -1,6 +1,6 @@
 import { ChevronRight, Play } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
-import type { Card, Shelf as ShelfT } from '../yt/types';
+import type { Card, Shelf as ShelfT, Track } from '../yt/types';
 import { Artwork } from './Artwork';
 import { hrefFor } from '../lib/nav';
 import { usePlayer } from '../store/player';
@@ -112,7 +112,7 @@ export function ShelfView({ shelf }: { shelf: ShelfT }) {
 }
 
 /** Apple Music's paged song columns: 4 rows per column, scrolling sideways. */
-export function SongGrid({ tracks, label }: { tracks: import('../yt/types').Track[]; label: string }) {
+export function SongGrid({ tracks, label }: { tracks: Track[]; label: string }) {
   const playTracks = usePlayer((s) => s.playTracks);
   const cols: (typeof tracks)[] = [];
   for (let i = 0; i < tracks.length; i += 4) cols.push(tracks.slice(i, i + 4));

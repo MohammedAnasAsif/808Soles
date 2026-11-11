@@ -265,6 +265,8 @@ function createWindow() {
       allowRunningInsecureContent: false,
       webviewTag: false,
       navigateOnDragDrop: false,
+      // No developer tools in installed builds.
+      devTools: !app.isPackaged,
       backgroundThrottling: false,
       spellcheck: false,
     },

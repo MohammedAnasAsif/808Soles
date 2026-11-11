@@ -35,6 +35,7 @@ jobs:
       - run: npm ci
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - run: npm audit --audit-level=high
       - run: npm run typecheck
       - run: npm test
 
@@ -126,11 +127,25 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: out
           merge-multiple: true
+      - name: Checksums
+        run: |
+          cd out
+          sha256sum 808Soles.apk 808Soles-Setup.exe > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      # Signed proof that these files were built by this workflow from this
+      # repository (verify with: gh attestation verify <file> -R <owner>/<repo>).
+      - uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
+        with:
+          subject-path: |
+            out/808Soles.apk
+            out/808Soles-Setup.exe
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
@@ -146,6 +161,8 @@ jobs:
           | **Windows** | Download **808Soles-Setup.exe** below and run it. If SmartScreen warns, click *More info → Run anyway*. |
 
           Built from ${GITHUB_SHA:0:7}.
+
+          **Check your download is genuine:** compare its SHA-256 with \`SHA256SUMS.txt\` below, or run \`gh attestation verify <file> -R $REPO\`.
           EOF
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             gh release create "$GITHUB_REF_NAME" out/* --repo "$REPO" --title "808Soles $GITHUB_REF_NAME" --notes-file notes.md --latest
