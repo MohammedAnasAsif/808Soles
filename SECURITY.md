@@ -10,16 +10,16 @@ Use **Security → Report a vulnerability** on this repository (GitHub private v
 
 Every release lists `SHA256SUMS.txt` and carries a signed build-provenance attestation, which proves the files were built by this repository's GitHub workflow from its source.
 
-- **Checksum:** on Windows run `certutil -hashfile 808Soles-Setup.exe SHA256`, on Linux or macOS run `sha256sum 808Soles.apk`, and compare with `SHA256SUMS.txt`.
+- **Checksum:** on Windows run `certutil -hashfile 808Soles-Setup.exe SHA256`, on Linux or macOS run `sha256sum 808Soles.apk` (or `808Soles.ipa`), and compare with `SHA256SUMS.txt`.
 - **Provenance:** with the GitHub CLI, run `gh attestation verify 808Soles.apk -R MohammedAnasAsif/808Soles`.
 
 Only install files from this repository's Releases page.
 
 ## How the apps are protected
 
-### Both apps
+### All apps
 
-- **Only three services are reachable.** The native bridge that makes network requests for the interface (`electron/main.cjs`, `CadencePlugin.java`) accepts only `https://` URLs on `youtube.com`, `youtubei.googleapis.com`, `*.googlevideo.com` and `lrclib.net`, on the default port, without credentials. Redirects to other hosts are refused. This stops a compromised page from reaching local files, your home network or other servers. Cookies, `Authorization` and hop-by-hop headers can't be set, and responses are size-capped.
+- **Only three services are reachable.** The native bridge that makes network requests for the interface (`electron/main.cjs`, `CadencePlugin.java`, `Bridge.swift`) accepts only `https://` URLs on `youtube.com`, `youtubei.googleapis.com`, `*.googlevideo.com` and `lrclib.net`, on the default port, without credentials. Redirects to other hosts are refused. This stops a compromised page from reaching local files, your home network or other servers. Cookies, `Authorization` and hop-by-hop headers can't be set, and responses are size-capped.
 - **YouTube's player code is isolated.** To unlock stream URLs, the app must run a few lines of YouTube's player script. That code runs in a separate worker (`src/yt/decipher-worker.ts`), which can't reach the page, storage or the native bridge, and which is stopped if it runs for more than 8 seconds. Before that code runs, the worker deletes its own network, storage and code-loading APIs (`fetch`, `XMLHttpRequest`, `WebSocket`, `importScripts`, IndexedDB, …), so the code can only compute. On Windows the worker's own CSP also blocks the network.
 - **Untrusted data is never treated as code.** YouTube and LRCLIB data is rendered as text by React (there is no raw-HTML rendering), and only `https:` images are displayed.
 - **Downloads are confined.** Files are written only to the app's private downloads folder. Names must match `<video id>.<ext>`, the source must be a googlevideo URL, files are capped at 400 MB, and deletion is limited to that folder.
@@ -42,9 +42,18 @@ Only install files from this repository's Releases page.
 - App data is excluded from cloud backups and device-to-device transfer, and `adb backup` is off.
 - The FileProvider is limited to a cache subfolder.
 
+### iPhone & iPad
+
+- The app is a small native shell (`ios/Sources/Soles808`) with no third-party code. The interface is served from a private `app://` scheme with the same Content-Security-Policy as Android, sent as a response header before any script runs, and the decipher worker gets its own network-free policy.
+- The web view can't navigate away from the app; `https` links open in Safari. Web Inspector is off in release builds.
+- The bridge (`webkit.messageHandlers.cadence`) only answers the app's own page in its main frame, and applies the same host allowlist, header filtering, redirect checks and size caps as the other apps. Its HTTP has no cookies or cache and requires TLS 1.2+. Plain `http` is blocked by App Transport Security.
+- The player only plays googlevideo streams or files in the app's own downloads folder (looked up by file name, so a path from the page can't point anywhere else). Lock-screen artwork must be `https`.
+- Downloads live in the app's private Application Support folder, excluded from iCloud backup.
+- No permissions are requested (no camera, microphone, location, contacts or tracking).
+
 ### Build and release
 
-- Release workflow jobs get read-only repository access. Only the publishing job can write releases, and it adds SHA-256 checksums and a signed build-provenance attestation for every file.
+- Release workflow jobs get read-only repository access. Only the publishing job can write releases, and it adds SHA-256 checksums and a signed build-provenance attestation for every file (APK, installer and IPA).
 - Pull requests, including Dependabot's, run typecheck, tests, build and `npm audit` with a read-only token and no secrets.
 - CodeQL code scanning (security-extended queries) covers the TypeScript app, the Android Java code (compiled, so the analysis is complete) and the workflows, on every push, every pull request and weekly.
 - Dependabot proposes weekly updates for npm, Gradle and GitHub Actions. Builds fail on any high or critical npm advisory.
@@ -56,6 +65,7 @@ Only install files from this repository's Releases page.
 ## Known limits
 
 - **Windows installer isn't code-signed.** SmartScreen warns on first run. Only download it from this repository's Releases page. Code signing needs a paid certificate.
+- **iPhone app is sideloaded.** It's signed on your computer with your own Apple ID when you install it (xtool, Sideloadly or AltStore), so only you can install that copy. With a free Apple ID it must be reinstalled every 7 days. Check `808Soles.ipa` against `SHA256SUMS.txt` before installing.
 - **Android APK is sideloaded.** Only install APKs from this repository's Releases page. Android refuses updates signed with a different key, which protects against tampered updates once the app is installed.
 - **YouTube's terms.** Streaming this way is against YouTube's terms of service. YouTube can change or block it at any time.
 - **No auto-update.** Install new versions from Releases to get fixes.

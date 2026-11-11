@@ -132,7 +132,7 @@ let preparedIndex = -1;
 let retries = 0;
 let fetchingMore = false;
 /** iOS: how many songs past the prepared one the native player gets. */
-const UPCOMING = 8;
+const UPCOMING = 15;
 
 export const usePlayer = create<PlayerState>((set, get) => {
   function eng(): Engine {
