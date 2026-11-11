@@ -85,6 +85,13 @@ jobs:
           VERSION_NAME: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('0.1.{0}', github.run_number) }}
         run: |
           chmod +x gradlew
+          # Fetch dependencies first, retrying: Maven Central or Google's
+          # repository occasionally fails a download, which shouldn't fail a release.
+          for attempt in 1 2 3; do
+            ./gradlew :app:dependencies --configuration releaseRuntimeClasspath --no-daemon --console=plain -q > /dev/null && break
+            echo "::warning::Dependency download failed (attempt $attempt); retrying"
+            sleep $((attempt * 30))
+          done
           ../scripts/ci-run.sh "Android build" ./gradlew assembleRelease --no-daemon --stacktrace --console=plain
           mkdir -p ../out
           cp app/build/outputs/apk/release/*.apk ../out/808Soles.apk
