@@ -22,16 +22,53 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [javascript-typescript, java-kotlin, actions]
+        include:
+          - language: javascript-typescript
+            build-mode: none
+          - language: actions
+            build-mode: none
+          # Java is compiled for real so CodeQL sees every call and type.
+          # Without a build it can't load the Gradle project, which depends on
+          # Capacitor's Android code in node_modules, and has to guess.
+          - language: java-kotlin
+            build-mode: manual
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false
+      - if: matrix.build-mode == 'manual'
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - if: matrix.build-mode == 'manual'
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
       - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           languages: ${{ matrix.language }}
-          build-mode: none
+          build-mode: ${{ matrix.build-mode }}
           queries: security-extended
+      - if: matrix.build-mode == 'manual'
+        name: Build Android Java
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: |
+          npm ci
+          npm run build
+          npx cap sync android
+          cd android
+          chmod +x gradlew
+          for attempt in 1 2 3; do
+            ./gradlew :app:dependencies --configuration debugCompileClasspath --no-daemon --console=plain -q > /dev/null && break
+            echo "::warning::Dependency download failed (attempt $attempt); retrying"
+            sleep $((attempt * 30))
+          done
+          # No daemon or build cache, so CodeQL watches every javac run.
+          ../scripts/ci-run.sh "Android compile" ./gradlew :app:compileDebugJavaWithJavac --no-daemon --no-build-cache --rerun-tasks --console=plain
       - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           category: /language:${{ matrix.language }}
