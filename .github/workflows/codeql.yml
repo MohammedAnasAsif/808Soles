@@ -1,7 +1,7 @@
 name: CodeQL
 
 # GitHub's code scanning for the TypeScript/JavaScript app, the Android Java
-# code and these workflows. Findings appear under Security → Code scanning.
+# code, the iPhone app's Swift code and these workflows. Findings appear under Security → Code scanning.
 on:
   push:
     branches: [main]
@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   analyze:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os || 'ubuntu-latest' }}
     permissions:
       contents: read
       security-events: write
@@ -32,6 +32,10 @@ jobs:
           # Capacitor's Android code in node_modules, and has to guess.
           - language: java-kotlin
             build-mode: manual
+          # The iPhone app's Swift code, compiled with Xcode.
+          - language: swift
+            build-mode: manual
+            os: macos-15
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -41,7 +45,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - if: matrix.build-mode == 'manual'
+      - if: matrix.language == 'java-kotlin'
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
@@ -52,7 +56,7 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           queries: security-extended
-      - if: matrix.build-mode == 'manual'
+      - if: matrix.language == 'java-kotlin'
         name: Build Android Java
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
@@ -69,6 +73,18 @@ jobs:
           done
           # No daemon or build cache, so CodeQL watches every javac run.
           ../scripts/ci-run.sh "Android compile" ./gradlew :app:compileDebugJavaWithJavac --no-daemon --no-build-cache --rerun-tasks --console=plain
+      - if: matrix.language == 'swift'
+        name: Build iOS Swift
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: |
+          npm ci
+          npm run build
+          npm run ios:web
+          cd ios
+          ../scripts/ci-run.sh "iOS compile" xcodebuild build -scheme Soles808 \
+            -destination 'generic/platform=iOS' -derivedDataPath build/codeql \
+            CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO -quiet
       - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           category: /language:${{ matrix.language }}

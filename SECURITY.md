@@ -55,7 +55,7 @@ Only install files from this repository's Releases page.
 
 - Release workflow jobs get read-only repository access. Only the publishing job can write releases, and it adds SHA-256 checksums and a signed build-provenance attestation for every file (APK, installer and IPA).
 - Pull requests, including Dependabot's, run typecheck, tests, build and `npm audit` with a read-only token and no secrets.
-- CodeQL code scanning (security-extended queries) covers the TypeScript app, the Android Java code (compiled, so the analysis is complete) and the workflows, on every push, every pull request and weekly.
+- CodeQL code scanning (security-extended queries) covers the TypeScript app, the workflows, and the Android Java and iPhone Swift code (both compiled, so the analysis is complete), on every push, every pull request and weekly.
 - Dependabot proposes weekly updates for npm, Gradle and GitHub Actions. Builds fail on any high or critical npm advisory.
 - Every third-party GitHub Action is pinned to a commit SHA, and checkouts don't keep the token.
 - The Android signing key exists only as repository secrets and is never in the repository. Workflows run on pushes to `main` and on tags, never for pull requests from forks, so outside contributors can't reach the secrets.
