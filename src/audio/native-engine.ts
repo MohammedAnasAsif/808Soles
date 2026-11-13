@@ -1,4 +1,4 @@
-import { NativeCadence, platform } from '../platform';
+import { NativeCadence } from '../platform';
 import { diag } from '../lib/diag';
 import type { Engine, EngineEvents, Source } from './engine';
 
@@ -19,9 +19,11 @@ const noop: EngineEvents = {
 export class NativeEngine implements Engine {
   private events: EngineEvents = noop;
 
-  /** iOS keeps playing these after the prepared track while the web view is paused. */
-  setUpcoming?: (srcs: Source[]) => void =
-    platform === 'ios' ? (srcs) => void NativeCadence.setUpcoming({ sources: srcs }).catch(() => {}) : undefined;
+  /**
+   * The native player keeps playing these after the prepared track, because
+   * the web view is paused (iOS) or frozen (Android, screen off) in the background.
+   */
+  setUpcoming = (srcs: Source[]) => void NativeCadence.setUpcoming({ sources: srcs }).catch(() => {});
 
   constructor() {
     void NativeCadence.addListener('state', (s) =>

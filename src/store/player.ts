@@ -131,7 +131,7 @@ let generation = 0;
 let preparedIndex = -1;
 let retries = 0;
 let fetchingMore = false;
-/** iOS: how many songs past the prepared one the native player gets. */
+/** How many songs past the prepared one the native player gets (Android, iOS). */
 const UPCOMING = 15;
 
 export const usePlayer = create<PlayerState>((set, get) => {
@@ -226,8 +226,9 @@ export const usePlayer = create<PlayerState>((set, get) => {
   }
 
   /**
-   * iOS pauses the web view in the background, so this code can't prepare
-   * each next song there. While the app is open, resolve a few songs past the
+   * iOS pauses the web view in the background, and Android freezes it once
+   * the screen has been off a while, so this code can't prepare each next song
+   * there. While the app is open, resolve a few songs past the
    * prepared one and hand them to the native player, which plays on through
    * them by itself. Songs are resolved one at a time, a little apart, and each
    * only once (they are cached), so this adds no burst of requests.

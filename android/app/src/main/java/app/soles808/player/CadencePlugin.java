@@ -423,18 +423,25 @@ public class CadencePlugin extends Plugin {
     }
 
     private PlaybackService.Source sourceFrom(PluginCall call) {
+        return sourceFrom(call.getData());
+    }
+
+    private PlaybackService.Source sourceFrom(org.json.JSONObject d) {
+        if (d == null) return null;
         PlaybackService.Source s = new PlaybackService.Source();
-        s.url = call.getString("url");
+        s.url = d.optString("url", null);
         if (!playableUrl(s.url)) return null;
-        Double g = call.getDouble("gain");
-        s.gain = g == null ? 1f : g.floatValue();
-        JSObject h = call.getObject("headers", new JSObject());
+        double g = d.optDouble("gain", 1.0);
+        s.gain = Double.isNaN(g) ? 1f : (float) Math.max(0.0, Math.min(1.0, g));
+        org.json.JSONObject h = d.optJSONObject("headers");
+        if (h == null) h = new org.json.JSONObject();
         Iterator<String> keys = h.keys();
         while (keys.hasNext()) {
             String k = keys.next();
             s.headers.put(k, h.optString(k));
         }
-        JSObject m = call.getObject("meta", new JSObject());
+        org.json.JSONObject m = d.optJSONObject("meta");
+        if (m == null) m = new org.json.JSONObject();
         s.title = m.optString("title", "");
         s.artist = m.optString("artist", "");
         s.album = m.optString("album", "");
@@ -448,7 +455,7 @@ public class CadencePlugin extends Plugin {
             safe.put(e.getKey(), e.getValue());
         }
         s.headers = safe;
-        JSObject ix = call.getObject("index", null);
+        org.json.JSONObject ix = d.optJSONObject("index");
         if (ix != null) {
             s.mimeType = ix.optString("mimeType", null);
             s.codecs = ix.optString("codecs", "");
@@ -486,6 +493,21 @@ public class CadencePlugin extends Plugin {
         }
         withService(() -> {
             PlaybackService.instance.prepareNext(s);
+            call.resolve();
+        });
+    }
+
+    /** The songs after the prepared one, for playing on with the screen off. */
+    @PluginMethod
+    public void setUpcoming(final PluginCall call) {
+        com.getcapacitor.JSArray arr = call.getArray("sources", new com.getcapacitor.JSArray());
+        final List<PlaybackService.Source> list = new ArrayList<>();
+        for (int i = 0; i < arr.length() && i < 20; i++) {
+            PlaybackService.Source s = sourceFrom(arr.optJSONObject(i));
+            if (s != null) list.add(s);
+        }
+        withService(() -> {
+            PlaybackService.instance.setUpcoming(list);
             call.resolve();
         });
     }

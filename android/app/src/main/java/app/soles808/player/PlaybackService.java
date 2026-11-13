@@ -29,6 +29,8 @@ import androidx.media3.session.MediaSession;
 import androidx.media3.session.MediaSessionService;
 
 import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -108,6 +110,18 @@ public class PlaybackService extends MediaSessionService {
     private long fadeLength = 0;
     private MediaSession session;
     private boolean wantPlaying = false;
+    /** The URL each deck is playing (to recognise songs that are already loaded). */
+    private final String[] deckUrl = new String[2];
+    /**
+     * The songs after the prepared one, from the web app. Android freezes the
+     * web view once the screen has been off for a while, so the web app can't
+     * prepare each next song then; we play on through these ourselves.
+     */
+    private final List<Source> upcoming = new ArrayList<>();
+    /** A next song that arrived mid-crossfade; prepared once the fade ends. */
+    @Nullable private Source pendingNext;
+    /** When the current song started (uptime ms), after a track change. */
+    private long advancedAt = 0;
 
     private final AudioAttributes attrs = new AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
@@ -208,22 +222,22 @@ public class PlaybackService extends MediaSessionService {
 
             @Override
             public void seekToNext() {
-                remote("next");
+                remoteNext();
             }
 
             @Override
             public void seekToNextMediaItem() {
-                remote("next");
+                remoteNext();
             }
 
             @Override
             public void seekToPrevious() {
-                remote("previous");
+                remotePrevious();
             }
 
             @Override
             public void seekToPreviousMediaItem() {
-                remote("previous");
+                remotePrevious();
             }
 
             @Override
@@ -246,6 +260,17 @@ public class PlaybackService extends MediaSessionService {
 
     private void remote(String action) {
         if (events != null) events.onRemote(action);
+    }
+
+    /** Handled here when the next song is ready, so it works with the screen off. */
+    private void remoteNext() {
+        if (fadeStart < 0 && nextReady) advance(false);
+        else if (nextReady || !skipToUpcoming()) remote("next");
+    }
+
+    private void remotePrevious() {
+        if (decks[active].getCurrentPosition() > 3000) seek(0);
+        else remote("previous");
     }
 
     /* ------------------------------------------------------------------ */
@@ -315,14 +340,30 @@ public class PlaybackService extends MediaSessionService {
         applyVolume(active);
         p.setMediaSource(sourceFor(s), startMs);
         p.prepare();
+        deckUrl[active] = s.url;
+        deckUrl[other] = null;
+        upcoming.clear();
+        pendingNext = null;
+        advancedAt = android.os.SystemClock.uptimeMillis();
         wantPlaying = autoplay;
         p.setPlayWhenReady(autoplay);
         emitState(true);
     }
 
     public void prepareNext(Source s) {
-        if (fadeStart >= 0) finishFade();
+        if (fadeStart >= 0) {
+            // Don't cut the crossfade short: prepare it when the fade ends.
+            pendingNext = s;
+            return;
+        }
         int other = 1 - active;
+        removeUpcoming(s.url);
+        if (nextReady && s.url.equals(deckUrl[other])) {
+            // Already preloaded (by ourselves, from `upcoming`).
+            gains[other] = s.gain;
+            applyVolume(other);
+            return;
+        }
         ExoPlayer p = decks[other];
         p.stop();
         gains[other] = s.gain;
@@ -331,14 +372,36 @@ public class PlaybackService extends MediaSessionService {
         p.setPlayWhenReady(false);
         p.setMediaSource(sourceFor(s));
         p.prepare();
+        deckUrl[other] = s.url;
         nextReady = true;
     }
 
+    public void setUpcoming(List<Source> list) {
+        upcoming.clear();
+        upcoming.addAll(list);
+        while (!upcoming.isEmpty()) {
+            String u = upcoming.get(0).url;
+            boolean loaded = u.equals(deckUrl[active]) || (nextReady && u.equals(deckUrl[1 - active]))
+                    || (pendingNext != null && u.equals(pendingNext.url));
+            if (!loaded) break;
+            upcoming.remove(0);
+        }
+    }
+
+    private void removeUpcoming(String url) {
+        for (int i = upcoming.size() - 1; i >= 0; i--) {
+            if (upcoming.get(i).url.equals(url)) upcoming.remove(i);
+        }
+    }
+
     public void clearNext() {
+        upcoming.clear();
+        pendingNext = null;
         if (fadeStart >= 0) return;
         int other = 1 - active;
         decks[other].stop();
         decks[other].clearMediaItems();
+        deckUrl[other] = null;
         nextReady = false;
     }
 
@@ -375,6 +438,9 @@ public class PlaybackService extends MediaSessionService {
     public void stopAll() {
         wantPlaying = false;
         fadeStart = -1;
+        upcoming.clear();
+        pendingNext = null;
+        deckUrl[0] = deckUrl[1] = null;
         for (ExoPlayer p : decks) {
             p.stop();
             p.clearMediaItems();
@@ -403,7 +469,35 @@ public class PlaybackService extends MediaSessionService {
             decks[active].setPlayWhenReady(false);
         }
         decks[next].setPlayWhenReady(true);
+        wantPlaying = true;
         setActive(next);
+        didAdvance();
+    }
+
+    /** Nothing preloaded yet, but the web app gave us the next song: play it now. */
+    private boolean skipToUpcoming() {
+        if (fadeStart >= 0 || upcoming.isEmpty()) return false;
+        Source s = upcoming.remove(0);
+        int other = 1 - active;
+        decks[other].stop();
+        decks[other].clearMediaItems();
+        deckUrl[other] = null;
+        nextReady = false;
+        ExoPlayer p = decks[active];
+        gains[active] = s.gain;
+        fades[active] = 1f;
+        applyVolume(active);
+        p.setMediaSource(sourceFor(s));
+        p.prepare();
+        deckUrl[active] = s.url;
+        wantPlaying = true;
+        p.setPlayWhenReady(true);
+        didAdvance();
+        return true;
+    }
+
+    private void didAdvance() {
+        advancedAt = android.os.SystemClock.uptimeMillis();
         if (events != null) events.onAdvanced();
         emitState(true);
     }
@@ -414,10 +508,16 @@ public class PlaybackService extends MediaSessionService {
         int old = 1 - active;
         decks[old].stop();
         decks[old].clearMediaItems();
+        deckUrl[old] = null;
         fades[old] = 1f;
         fades[active] = 1f;
         applyVolume(old);
         applyVolume(active);
+        if (pendingNext != null) {
+            Source s = pendingNext;
+            pendingNext = null;
+            prepareNext(s);
+        }
     }
 
     private void tick() {
@@ -437,6 +537,12 @@ public class PlaybackService extends MediaSessionService {
                 long lead = Math.min(crossfadeMs, dur / 3);
                 if (remaining <= lead) advance(true);
             }
+        } else if (!nextReady && pendingNext == null && !upcoming.isEmpty()
+                && decks[active].getMediaItemCount() > 0
+                && android.os.SystemClock.uptimeMillis() - advancedAt > 8000) {
+            // The web app prepares the next song a few seconds after a change;
+            // if it hasn't (its web view is frozen with the screen off), we do.
+            prepareNext(upcoming.remove(0));
         }
         emitState(false);
     }
@@ -445,7 +551,7 @@ public class PlaybackService extends MediaSessionService {
         if (deck != active) return;
         if (nextReady) {
             advance(false);
-        } else {
+        } else if (!skipToUpcoming()) {
             wantPlaying = false;
             if (events != null) events.onEnded();
         }
@@ -453,7 +559,7 @@ public class PlaybackService extends MediaSessionService {
 
     private void onDeckError(int deck, PlaybackException error) {
         if (deck != active) {
-            nextReady = false;
+            if (fadeStart < 0) nextReady = false;
             return;
         }
         int status = 0;

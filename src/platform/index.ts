@@ -83,8 +83,9 @@ export interface CadencePlugin {
   load(opts: NativeSource & { startMs: number; autoplay: boolean }): Promise<void>;
   prepareNext(opts: NativeSource): Promise<void>;
   /**
-   * iOS only: the tracks after the prepared one. iOS pauses the web view in
-   * the background, so the native player continues through these by itself.
+   * The tracks after the prepared one. iOS pauses the web view in the
+   * background and Android freezes it with the screen off, so the native
+   * player continues through these by itself.
    */
   setUpcoming(opts: { sources: NativeSource[] }): Promise<void>;
   clearNext(): Promise<void>;
